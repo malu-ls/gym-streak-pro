@@ -70,7 +70,9 @@ export default function GymTracker() {
     }
 
     const registro: Treino = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      id: typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Date.now().toString(),
       data: dataSelecionada,
       hora: new Date().getHours()
     };

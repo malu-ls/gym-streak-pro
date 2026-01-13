@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   register: true,
@@ -7,12 +8,8 @@ const withPWA = require('next-pwa')({
 });
 
 const nextConfig: NextConfig = {
-  // Isso silencia o erro do Turbopack na Vercel
-  experimental: {
-    turbo: {
-      // Configurações vazias forçam o fallback para Webpack
-    },
-  },
+  reactStrictMode: true,
+  // Forçamos o fallback para Webpack removendo configurações experimentais conflitantes
 };
 
 export default withPWA(nextConfig);
