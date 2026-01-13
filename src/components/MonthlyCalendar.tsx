@@ -9,13 +9,13 @@ import {
   startOfMonth,
   getDay,
   getDaysInMonth,
-  isSameDay,
-  parseISO
+  isSameDay
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Props {
   treinos: { data: string }[];
+  onToggleTreino: (dataIso: string) => void; // Nova prop para interatividade
 }
 
 interface Feriado {
@@ -23,7 +23,7 @@ interface Feriado {
   name: string;
 }
 
-export default function MonthlyCalendar({ treinos }: Props) {
+export default function MonthlyCalendar({ treinos, onToggleTreino }: Props) {
   const [mesReferencia, setMesReferencia] = useState(new Date());
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [loadingFeriados, setLoadingFeriados] = useState(false);
@@ -129,13 +129,16 @@ export default function MonthlyCalendar({ treinos }: Props) {
           }
 
           return (
-            <div
+            <button
               key={item.chave}
-              title={item.feriado?.name}
+              type="button"
+              onClick={() => onToggleTreino(item.chave)} // Aciona a função de alternar treino
+              title={item.feriado?.name || "Clique para alternar treino"}
               className={`
-                relative h-12 md:h-14 flex flex-col items-center justify-center rounded-xl border transition-all duration-300
+                relative h-12 md:h-14 flex flex-col items-center justify-center rounded-xl border transition-all duration-200
+                active:scale-95 hover:brightness-125
                 ${item.treinou
-                  ? 'bg-orange-600/20 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.15)]'
+                  ? 'bg-orange-600/30 border-orange-500/50 shadow-[0_0_15px_rgba(249,115,22,0.15)]'
                   : item.feriado
                     ? 'bg-red-500/10 border-red-500/30'
                     : 'bg-slate-800/30 border-slate-800/80'}
@@ -160,7 +163,7 @@ export default function MonthlyCalendar({ treinos }: Props) {
               {item.isHoje && (
                 <div className="absolute bottom-1 w-4 h-0.5 bg-blue-500/50 rounded-full" />
               )}
-            </div>
+            </button>
           );
         })}
       </div>
