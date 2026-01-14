@@ -44,9 +44,27 @@ export default function GymTracker() {
     }
   }, [treinos, metaSemanal, metaAnual, isCarregado]);
 
-  // 2. Utilitários
+  // 2. Lembrete de Treino Diário (Notificação Local)
+  useEffect(() => {
+    if (!isCarregado || treinos.length === 0) return;
+
+    const hoje = new Date().toISOString().split('T')[0];
+    const jaTreinouHoje = treinos.some(t => t.data === hoje);
+
+    if (!jaTreinouHoje && typeof window !== 'undefined' && Notification.permission === 'granted') {
+      const timer = setTimeout(() => {
+        new Notification("Fogo no treino! 🔥", {
+          body: "Você ainda não registrou seu treino de hoje. Não deixe a chama apagar!",
+          icon: "/icon-192x192.png"
+        });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [treinos, isCarregado]);
+
+  // 3. Utilitários
   const gerarIdSeguro = () => {
-    if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
       return window.crypto.randomUUID();
     }
     return `id-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -70,7 +88,7 @@ export default function GymTracker() {
 
   const rankAtual = getRank(treinos.length);
 
-  const exportarRelatorioMensal = async () => {
+  const compartilharRelatorio = async () => {
     const node = document.getElementById('resumo-mensal-card');
     if (!node) return;
 
@@ -78,26 +96,36 @@ export default function GymTracker() {
       node.style.display = 'flex';
       node.style.left = '0';
 
-      await new Promise(resolve => setTimeout(resolve, 150));
-
       const dataUrl = await toPng(node, {
-        quality: 1,
-        pixelRatio: 3,
-        backgroundColor: '#020617'
+        quality: 0.95,
+        backgroundColor: '#020617',
+        width: 1080,
+        height: 1920
       });
 
       node.style.left = '-2000px';
 
-      const link = document.createElement('a');
-      link.download = `gym-streak-rank.png`;
-      link.href = dataUrl;
-      link.click();
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const arquivo = new File([blob], 'gym-streak.png', { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare({ files: [arquivo] })) {
+        await navigator.share({
+          files: [arquivo],
+          title: 'Gym Streak - Meu Progresso',
+          text: 'A chama nunca apaga! 🔥',
+        });
+      } else {
+        const link = document.createElement('a');
+        link.download = 'gym-streak-status.png';
+        link.href = dataUrl;
+        link.click();
+      }
     } catch (err) {
-      console.error("Erro ao gerar imagem:", err);
+      console.error("Erro ao compartilhar:", err);
     }
   };
 
-  // Lógica para o progresso mensal (Ex: 15 treinos de 20 previstos no mês)
   const getProgressoMensal = () => {
     const hoje = new Date();
     const mesAtual = hoje.getMonth();
@@ -108,7 +136,6 @@ export default function GymTracker() {
       return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
     }).length;
 
-    // Calculamos uma meta mensal proporcional à meta semanal (MetaSemanal * 4 semanas)
     const metaMensalEstimada = metaSemanal * 4;
     const bateuMetaMensal = treinosNoMes >= metaMensalEstimada;
 
@@ -116,7 +143,7 @@ export default function GymTracker() {
   };
 
   const progMensal = getProgressoMensal();
-  // 3. Lógica de Treinos
+
   const getTreinosSemanaAtual = (lista: Treino[]) => {
     const hoje = new Date();
     const seg = new Date(hoje.setDate(hoje.getDate() - hoje.getDay() + (hoje.getDay() === 0 ? -6 : 1)));
@@ -132,11 +159,9 @@ export default function GymTracker() {
       const novo = { id: gerarIdSeguro(), data: dataIso, hora: 12 };
       const novaLista = [novo, ...prev];
 
-      // Confete ao atingir meta da semana
       if (getTreinosSemanaAtual(novaLista) === metaSemanal) {
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
       } else {
-        // Feedback visual simples para cliques individuais
         confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
       }
       return novaLista;
@@ -145,7 +170,6 @@ export default function GymTracker() {
 
   const removerTreino = (id: string) => setTreinos(prev => prev.filter(t => t.id !== id));
 
-  // 4. Cálculos e Badges
   const stats = (() => {
     if (treinos.length === 0) return null;
     const hoje = new Date();
@@ -183,13 +207,19 @@ export default function GymTracker() {
         {/* Header */}
         <header className="flex justify-between items-center bg-slate-900/50 p-6 md:p-8 rounded-3xl border border-slate-800 shadow-2xl">
           <div>
-            <h1 className="text-2xl md:text-3xl font-black italic uppercase italic">Gym <span className="text-orange-500">Streak</span></h1>
+            <h1 className="text-2xl md:text-3xl font-black italic uppercase">Gym <span className="text-orange-500">Streak</span></h1>
             <p className="text-slate-500 text-xs md:text-sm font-medium mt-1">
-              {getTreinosSemanaAtual(treinos) >= metaSemanal ? "🚀 Meta batida!" : "Clique no dia para marcar seu treino."}
+              {getTreinosSemanaAtual(treinos) >= metaSemanal ? "🚀 Meta batida!" : "Toque no calendário para registrar."}
             </p>
           </div>
           <div className="flex gap-2">
-            <button onClick={solicitarNotificacao} className="p-3 bg-slate-800 rounded-2xl hover:text-orange-500 transition-colors border border-slate-700">
+            <button
+              onClick={solicitarNotificacao}
+              className={`p-3 rounded-2xl transition-colors border ${typeof window !== 'undefined' && Notification.permission === 'granted'
+                ? 'bg-orange-500/10 border-orange-500 text-orange-500'
+                : 'bg-slate-800 border-slate-700 hover:text-orange-500'
+                }`}
+            >
               <Bell className="w-5 h-5" />
             </button>
             <div className="flex flex-col items-center bg-slate-800/50 px-4 py-2 rounded-2xl border border-orange-500/20">
@@ -233,19 +263,21 @@ export default function GymTracker() {
             </div>
             <div className={`p-5 rounded-3xl border flex flex-col justify-center text-center ${stats.diasAtrasado > 0 ? 'bg-red-500/5 border-red-500/20 text-red-400' : 'bg-green-500/5 border-green-500/20 text-green-400'}`}>
               <p className="text-[10px] font-bold text-slate-500 uppercase mb-1">Ritmo</p>
-              <p className="text-xs font-bold uppercase">{stats.diasAtrasado > 0 ? `⚠️ ${stats.diasAtrasado} dias atrás` : '✅ Ritmo Ideal'}</p>
+              <p className="text-xs font-bold uppercase">{stats.diasAtrasado > 0 ? `⚠️ ${stats.diasAtrasado} dias atrás` : '✅ No ritmo!'}</p>
             </div>
           </div>
         )}
 
-        <button onClick={exportarRelatorioMensal} className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white font-black py-5 rounded-2xl shadow-lg flex items-center justify-center gap-3 uppercase text-xs tracking-widest transition-transform active:scale-95">
-          <Share2 className="w-4 h-4" /> Compartilhar Evolução
+        <button
+          onClick={compartilharRelatorio}
+          className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white font-black py-5 rounded-2xl shadow-lg flex items-center justify-center gap-3 uppercase text-xs tracking-widest transition-transform active:scale-95"
+        >
+          <Share2 className="w-4 h-4" /> Compartilhar Status
         </button>
 
-        {/* Badges e Histórico */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 flex flex-col justify-center">
-            <h3 className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest text-center">Minhas Conquistas</h3>
+            <h3 className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest text-center">Conquistas</h3>
             <div className="grid grid-cols-3 gap-2">
               {badges.map(b => (
                 <div key={b.id} className={`p-3 rounded-xl border text-center transition-all ${b.c ? 'bg-yellow-500/10 border-yellow-500/40' : 'opacity-20 grayscale'}`}>
@@ -258,35 +290,30 @@ export default function GymTracker() {
 
           <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden text-sm">
             <div className="p-4 bg-slate-800/50 border-b border-slate-800 text-[10px] font-black text-slate-500 uppercase flex justify-between">
-              <span>Histórico Recente</span>
-              <span>{treinos.length} Treinos</span>
+              <span>Histórico</span>
+              <span>{treinos.length} total</span>
             </div>
             <div className="max-h-60 overflow-y-auto scrollbar-hide">
-              {treinos.length === 0 ? (
-                <p className="p-8 text-center text-slate-600 italic">Nenhum suor registrado ainda.</p>
-              ) : (
-                treinos.map(t => (
-                  <div key={t.id} className="p-4 flex justify-between items-center border-b border-slate-800/30 hover:bg-slate-800/20">
-                    <span className="flex items-center gap-3 font-medium text-slate-300">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      {new Date(t.data + "T00:00:00").toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
-                    </span>
-                    <button onClick={() => removerTreino(t.id)} className="text-slate-600 hover:text-red-500 p-1 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                ))
-              )}
+              {treinos.map(t => (
+                <div key={t.id} className="p-4 flex justify-between items-center border-b border-slate-800/30 hover:bg-slate-800/20">
+                  <span className="flex items-center gap-3 font-medium text-slate-300">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    {new Date(t.data + "T00:00:00").toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+                  </span>
+                  <button onClick={() => removerTreino(t.id)} className="text-slate-600 hover:text-red-500 p-1 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
             </div>
           </div>
         </div>
       </div>
 
-      {/* CARD INSTAGRAM (VERSÃO RANK + CLEAN) */}
+      {/* CARD OFF-SCREEN PARA RENDERIZAÇÃO */}
       <div
         id="resumo-mensal-card"
         className="fixed w-[1080px] h-[1920px] bg-slate-950 p-24 flex flex-col justify-between"
         style={{ left: '-2000px', top: 0, zIndex: -1, backgroundColor: '#020617' }}
       >
-        {/* Header */}
         <div className="space-y-6">
           <h1 className="text-[120px] font-black text-white italic uppercase leading-none tracking-tighter">
             Gym <span className="text-orange-500">Streak</span>
@@ -296,7 +323,6 @@ export default function GymTracker() {
           </p>
         </div>
 
-        {/* Rank Central */}
         <div className="bg-gradient-to-br from-orange-500/20 to-slate-900 p-16 rounded-[100px] border-4 border-orange-500/30 text-center space-y-4">
           <p className="text-slate-400 text-4xl font-black uppercase tracking-widest">Nível Atual</p>
           <p className="text-[120px] leading-tight font-black text-white uppercase italic">
@@ -304,7 +330,6 @@ export default function GymTracker() {
           </p>
         </div>
 
-        {/* Estatísticas */}
         <div className="space-y-8">
           <div className="grid grid-cols-2 gap-8">
             <div className="bg-slate-900/80 p-12 rounded-[60px] border-4 border-slate-800">
@@ -330,7 +355,6 @@ export default function GymTracker() {
           </div>
         </div>
 
-        {/* Footer Clean */}
         <div className="flex justify-between items-center border-t-8 border-slate-800 pt-16">
           <p className="text-6xl text-white font-black italic uppercase tracking-tighter">
             A chama nunca apaga

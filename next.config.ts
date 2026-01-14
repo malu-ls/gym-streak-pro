@@ -9,13 +9,11 @@ const withPWA = require('next-pwa')({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Força o Next.js a ignorar erros de tipo e lint durante o build para garantir o deploy
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
+  // Forçamos o fallback para Webpack para evitar o erro do Turbopack (image_8cc068)
+  webpack: (config) => {
+    return config;
   },
 };
 
-export default withPWA(nextConfig);
+// Como o TypeScript está rigoroso, exportamos ignorando erros de tipo na configuração do plugin
+export default withPWA(nextConfig as any);
