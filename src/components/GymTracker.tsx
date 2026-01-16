@@ -179,6 +179,11 @@ export default function GymTracker() {
     </div>
   );
 
+  const treinouHoje = useMemo(() => {
+    const hoje = new Date().toISOString().split('T')[0];
+    return treinos.some(t => t.data === hoje);
+  }, [treinos]);
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50 p-4 md:p-8 pb-24">
       <div className="max-w-4xl mx-auto space-y-8">
@@ -218,11 +223,12 @@ export default function GymTracker() {
       <InstagramCard
         treinosCount={treinos.length}
         metaAnual={metaAnual}
-        consistencia={statsCalculados.consistencia}
-        treinosNoMes={statsCalculados.treinosNoMes}
-        metaMensalEstimada={statsCalculados.metaM}
-        bateuMetaMensal={statsCalculados.bateuM}
+        consistencia={stats.consistencia} // ou statsCalculados.consistencia
+        treinosNoMes={stats.noMes}
+        metaMensalEstimada={stats.metaM}
+        bateuMetaMensal={stats.bateuM}
         rank={rankAtual}
+        treinouHoje={treinouHoje} // <--- ADICIONE ESTA LINHA EXATAMENTE AQUI
       />
     </main>
   );
