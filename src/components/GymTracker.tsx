@@ -224,7 +224,7 @@ export default function GymTracker() {
         treinosCount={treinos.length}
         metaAnual={metaAnual}
         consistencia={statsCalculados.consistencia}
-        treinosNoMes={statsCalculados.noMes}
+        treinosNoMes={statsCalculados.treinosNoMes} // Corrigido: de .noMes para .treinosNoMes
         metaMensalEstimada={statsCalculados.metaM}
         bateuMetaMensal={statsCalculados.bateuM}
         rank={rankAtual}
