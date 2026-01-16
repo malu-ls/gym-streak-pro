@@ -5,7 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Scale, Plus, History, Trash2, Share2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toPng } from 'html-to-image';
-import BMICalculator from './BMICalculator';
+import BMICalculator from '@/components/body/BMICalculator';  
 import WeightShareCard from '@/components/social/WeightShareCard';
 
 interface RegistroPeso {
