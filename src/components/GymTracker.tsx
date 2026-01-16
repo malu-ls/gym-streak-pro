@@ -223,12 +223,12 @@ export default function GymTracker() {
       <InstagramCard
         treinosCount={treinos.length}
         metaAnual={metaAnual}
-        consistencia={stats.consistencia} // ou statsCalculados.consistencia
-        treinosNoMes={stats.noMes}
-        metaMensalEstimada={stats.metaM}
-        bateuMetaMensal={stats.bateuM}
+        consistencia={statsCalculados.consistencia}
+        treinosNoMes={statsCalculados.noMes}
+        metaMensalEstimada={statsCalculados.metaM}
+        bateuMetaMensal={statsCalculados.bateuM}
         rank={rankAtual}
-        treinouHoje={treinouHoje} // <--- ADICIONE ESTA LINHA EXATAMENTE AQUI
+        treinouHoje={treinouHoje}
       />
     </main>
   );
