@@ -13,10 +13,15 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+interface Treino {
+  data: string;
+  mood?: string;
+}
+
 interface Props {
-  treinos: { data: string }[];
+  treinos: Treino[];
   onToggleTreino: (dataIso: string) => void;
-  onMonthChange?: (date: Date) => void; // ADICIONADO: Prop para comunicar mudança
+  onMonthChange?: (date: Date) => void;
 }
 
 interface Feriado {
@@ -29,7 +34,6 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [loadingFeriados, setLoadingFeriados] = useState(false);
 
-  // Busca feriados otimizada
   useEffect(() => {
     let active = true;
     const buscarFeriados = async () => {
@@ -51,7 +55,6 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
     return () => { active = false; };
   }, [mesReferencia.getFullYear()]);
 
-  // NAVEGAÇÃO ATUALIZADA: Agora chama o onMonthChange
   const proximoMes = useCallback(() => {
     setMesReferencia(prev => {
       const novaData = addMonths(prev, 1);
@@ -68,17 +71,15 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
     });
   }, [onMonthChange]);
 
-  // Grid de Dias - Otimizado com Set
   const gridDias = useMemo(() => {
     const primeiroDiaSemana = getDay(startOfMonth(mesReferencia));
     const totalDias = getDaysInMonth(mesReferencia);
     const hoje = new Date();
 
-    const treinosSet = new Set(treinos.map(t => t.data));
+    const treinosMap = new Map(treinos.map(t => [t.data, t.mood]));
     const feriadosMap = new Map(feriados.map(f => [f.date, f.name]));
 
     const dias = [];
-
     for (let i = 0; i < primeiroDiaSemana; i++) {
       dias.push({ tipo: 'vazio', chave: `empty-${i}` });
     }
@@ -86,17 +87,18 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
     for (let d = 1; d <= totalDias; d++) {
       const dataAtual = new Date(mesReferencia.getFullYear(), mesReferencia.getMonth(), d);
       const dataIso = format(dataAtual, 'yyyy-MM-dd');
+      const mood = treinosMap.get(dataIso);
 
       dias.push({
         tipo: 'dia',
         numero: d,
         chave: dataIso,
         isHoje: isSameDay(hoje, dataAtual),
-        treinou: treinosSet.has(dataIso),
+        treinou: treinosMap.has(dataIso),
+        mood: mood,
         feriadoNome: feriadosMap.get(dataIso)
       });
     }
-
     return dias;
   }, [mesReferencia, treinos, feriados]);
 
@@ -138,9 +140,11 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
         ))}
 
         {gridDias.map((item) => {
-          if (item.tipo === 'vazio') {
-            return <div key={item.chave} className="aspect-square" />;
-          }
+          if (item.tipo === 'vazio') return <div key={item.chave} className="aspect-square" />;
+
+          // Lógica de Sentimento: Se for Troféu ou vazio, mostramos o número.
+          // Se for um emoji diferente, mostramos o emoji.
+          const temSentimentoReal = item.treinou && item.mood && item.mood !== '🏆';
 
           return (
             <button
@@ -158,12 +162,21 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
                 ${item.isHoje && !item.treinou ? 'ring-2 ring-blue-500 ring-offset-4 ring-offset-slate-900' : ''}
               `}
             >
-              <span className={`text-xs md:text-sm font-black transition-colors
-                ${item.treinou ? 'text-white' : item.feriadoNome ? 'text-red-400' : 'text-slate-400'}
-              `}>
-                {item.numero}
-              </span>
+              {temSentimentoReal ? (
+                /* Exibe o emoji se a pessoa escolheu um sentimento diferente de Troféu */
+                <span className="text-xl md:text-2xl animate-in zoom-in duration-300">
+                  {item.mood}
+                </span>
+              ) : (
+                /* Exibe o número original do dia */
+                <span className={`text-xs md:text-sm font-black transition-colors
+                  ${item.treinou ? 'text-white' : item.feriadoNome ? 'text-red-400' : 'text-slate-400'}
+                `}>
+                  {item.numero}
+                </span>
+              )}
 
+              {/* O Troféu no canto que você gosta continua aqui, fixo para todos os treinos */}
               {item.treinou && (
                 <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-lg animate-in zoom-in">
                   <Trophy className="w-2.5 h-2.5 text-orange-600" />

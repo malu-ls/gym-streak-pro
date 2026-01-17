@@ -1,19 +1,23 @@
 "use client";
 
 import React, { useState, useRef } from 'react';
-import { Calendar, ArrowRight, CalendarDays } from 'lucide-react';
+import { Calendar, ArrowRight, CalendarDays, Droplets } from 'lucide-react';
 
 interface Props {
-  onSave: (data: { ultimo_ciclo: string; duracao_ciclo: number }) => void;
+  onSave: (data: {
+    ultimo_ciclo: string;
+    duracao_ciclo: number;
+    duracao_periodo: number
+  }) => void;
 }
 
 export default function FemaleOnboarding({ onSave }: Props) {
   const [data, setData] = useState({
     ultimo_ciclo: '',
-    duracao_ciclo: 28
+    duracao_ciclo: 28,
+    duracao_periodo: 5 // Valor padrão sugerido
   });
 
-  // Referência para o input de data
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -29,12 +33,12 @@ export default function FemaleOnboarding({ onSave }: Props) {
       </div>
 
       <div className="space-y-6">
-        {/* Campo de Data com gatilho para abrir o calendário */}
+        {/* Início do Ciclo */}
         <div className="space-y-2">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Início do último ciclo</label>
           <div
             className="relative cursor-pointer group"
-            onClick={() => dateInputRef.current?.showPicker()} // Abre o calendário ao clicar na div
+            onClick={() => dateInputRef.current?.showPicker()}
           >
             <input
               ref={dateInputRef}
@@ -46,8 +50,9 @@ export default function FemaleOnboarding({ onSave }: Props) {
           </div>
         </div>
 
+        {/* Duração do Ciclo (Intervalo) */}
         <div className="space-y-2">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duração média do ciclo</label>
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duração média do ciclo (intervalo)</label>
           <div className="grid grid-cols-4 gap-2">
             {[26, 28, 30, 32].map((d) => (
               <button
@@ -60,6 +65,28 @@ export default function FemaleOnboarding({ onSave }: Props) {
                   }`}
               >
                 {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* NOVO: Duração do Período (Sangramento) */}
+        <div className="space-y-2">
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
+            <Droplets size={12} className="text-red-500" /> Dias de fluxo (sangramento)
+          </label>
+          <div className="flex justify-between gap-2">
+            {[3, 4, 5, 6, 7].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => setData({ ...data, duracao_periodo: d })}
+                className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${data.duracao_periodo === d
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 scale-105'
+                  : 'bg-slate-800 text-slate-500 hover:text-white'
+                  }`}
+              >
+                {d}
               </button>
             ))}
           </div>

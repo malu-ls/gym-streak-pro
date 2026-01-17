@@ -1,11 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Scale, Plus, Loader2, History, TrendingUp, Share2 } from 'lucide-react';
+import { Scale, Plus, Loader2, History, TrendingUp, Share2, Droplets, Check } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ShareWeightModal from '@/components/social/ShareWeightModal';
 
-export default function WeightTracker() {
+interface Props {
+  ultimoCiclo?: string;
+  duracaoCiclo?: number;
+  duracaoPeriodo?: number;
+}
+
+export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriodo }: Props) {
   const [pesoInput, setPesoInput] = useState('');
   const [historico, setHistorico] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -28,9 +34,24 @@ export default function WeightTracker() {
     }
   }
 
-  // --- LÓGICA DE PESO ---
-  // Peso inicial: o registro mais antigo (último do array ordenado por data)
-  // Peso atual: o registro mais recente (primeiro do array)
+  // --- LÓGICA DINÂMICA DE FASE (RETENÇÃO DE LÍQUIDOS) ---
+  const statusRetencao = useMemo(() => {
+    if (!ultimoCiclo || !duracaoCiclo) return null;
+
+    const hoje = new Date();
+    const inicio = new Date(ultimoCiclo);
+    const diffDias = Math.floor((hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
+    const diaAtual = (diffDias % duracaoCiclo) + 1;
+
+    // Fase Pré-Menstrual geralmente ocorre nos últimos 5-7 dias do ciclo
+    const isPreMenstrual = diaAtual > (duracaoCiclo - 7);
+
+    return {
+      isPreMenstrual,
+      diaAtual
+    };
+  }, [ultimoCiclo, duracaoCiclo]);
+
   const pesoAtual = useMemo(() => (historico.length > 0 ? Number(historico[0].peso) : 0), [historico]);
   const pesoInicial = useMemo(() => (historico.length > 0 ? Number(historico[historico.length - 1].peso) : 0), [historico]);
   const perdaTotal = useMemo(() => Math.max(0, pesoInicial - pesoAtual), [pesoInicial, pesoAtual]);
@@ -65,18 +86,55 @@ export default function WeightTracker() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-700">
+
+      {/* TÍTULO DA SEÇÃO */}
+      <header className="p-12 bg-slate-900/40 rounded-[48px] border border-white/5 text-center backdrop-blur-xl">
+        <h1 className="text-4xl font-black italic uppercase text-white tracking-tighter">
+          Corpo <span className="text-orange-500">& Peso</span>
+        </h1>
+        <p className="text-slate-500 text-[10px] font-black uppercase mt-3 tracking-[0.5em]">Personal Tracker</p>
+      </header>
+
+      {/* ALERTA DINÂMICO DE PESO */}
+      {statusRetencao && (
+        <div className={`p-6 rounded-[32px] border flex items-start gap-4 transition-colors duration-500 ${statusRetencao.isPreMenstrual
+          ? "bg-blue-500/10 border-blue-500/20"
+          : "bg-emerald-500/10 border-emerald-500/20"
+          }`}>
+          <div className={`p-2 rounded-xl ${statusRetencao.isPreMenstrual ? "bg-blue-500/20" : "bg-emerald-500/20"
+            }`}>
+            {statusRetencao.isPreMenstrual
+              ? <Droplets className="text-blue-400 w-5 h-5" />
+              : <Check className="text-emerald-400 w-5 h-5" />
+            }
+          </div>
+          <div className="space-y-1">
+            <h4 className={`text-[11px] font-black uppercase tracking-widest ${statusRetencao.isPreMenstrual ? "text-blue-400" : "text-emerald-400"
+              }`}>
+              Nota de Performance
+            </h4>
+            <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+              {statusRetencao.isPreMenstrual
+                ? "Atenção: Você está na fase pré-menstrual. A balança pode subir até 2kg por retenção hídrica. Isso não é gordura!"
+                : "Seu corpo não deve apresentar retenção hídrica agora. Momento perfeito para validar seus resultados reais."
+              }
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* GRÁFICO DE EVOLUÇÃO */}
       {historico.length > 1 && (
-        <div className="bg-slate-900/50 p-6 rounded-[40px] border border-white/5 backdrop-blur-xl h-[300px] w-full animate-in fade-in duration-700">
+        <div className="bg-slate-900/50 p-6 rounded-[40px] border border-white/5 backdrop-blur-xl h-[300px] w-full">
           <div className="flex items-center justify-between mb-4 px-2">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-orange-500" />
-              <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Curva de Peso</span>
+              <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Curva de Evolução</span>
             </div>
             {perdaTotal > 0 && (
               <span className="bg-orange-500/10 text-orange-500 text-[10px] font-black px-3 py-1 rounded-full border border-orange-500/20">
-                -{perdaTotal.toFixed(1)} KG
+                -{perdaTotal.toFixed(1)} KG ELIMINADOS
               </span>
             )}
           </div>
@@ -119,7 +177,7 @@ export default function WeightTracker() {
               value={pesoInput}
               onChange={(e) => setPesoInput(e.target.value.replace(/[^0-9.]/g, ''))}
               placeholder="00.0"
-              className="w-full bg-slate-800/50 border border-white/10 rounded-3xl py-6 px-8 text-2xl font-black text-white outline-none focus:border-orange-500/50 transition-all placeholder:text-slate-700"
+              className="w-full bg-slate-800/50 border border-white/10 rounded-3xl py-6 px-8 text-2xl font-black text-white outline-none focus:border-orange-500/50 transition-all placeholder:text-slate-700 shadow-inner"
             />
             <span className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-600 font-black uppercase text-xs tracking-widest">KG</span>
           </div>
@@ -127,25 +185,14 @@ export default function WeightTracker() {
           <button
             onClick={handleSalvar}
             disabled={isSalvando || !pesoInput}
-            className="bg-orange-500 hover:bg-orange-600 disabled:opacity-30 disabled:grayscale text-white px-8 rounded-3xl transition-all active:scale-95 shadow-lg shadow-orange-500/20"
+            className="bg-orange-500 hover:bg-orange-600 disabled:opacity-30 text-white px-8 rounded-3xl transition-all active:scale-95 shadow-lg shadow-orange-500/20"
           >
             {isSalvando ? <Loader2 className="animate-spin" /> : <Plus className="w-8 h-8" strokeWidth={3} />}
           </button>
         </div>
       </div>
 
-      {/* BOTÃO DE COMPARTILHAR ARTE */}
-      {historico.length >= 2 && (
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="w-full bg-slate-800 hover:bg-slate-700 p-6 rounded-[32px] border border-white/5 flex items-center justify-center gap-3 transition-all active:scale-95 group"
-        >
-          <Share2 className="w-5 h-5 text-orange-500 group-hover:scale-110 transition-transform" />
-          <span className="text-xs font-black uppercase text-white tracking-widest">Exportar Evolução Corporal</span>
-        </button>
-      )}
-
-      {/* LISTA DE HISTÓRICO */}
+      {/* HISTÓRICO */}
       <div className="bg-slate-900/50 p-8 rounded-[40px] border border-white/5">
         <div className="flex items-center gap-3 mb-8 text-slate-500">
           <History size={14} className="text-orange-500/50" />
@@ -163,27 +210,17 @@ export default function WeightTracker() {
                     {Number(item.peso).toFixed(1)} <small className="text-xs text-slate-600 not-italic uppercase tracking-widest ml-1">kg</small>
                   </span>
                 </div>
-                <div className="text-right flex items-center gap-6">
-                  <div>
-                    <p className="text-slate-400 font-black text-[10px] uppercase tracking-wider">
-                      {new Date(item.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                    </p>
-                    <p className="text-slate-600 font-bold text-[9px] uppercase tracking-tighter">
-                      {new Date(item.data).toLocaleDateString('pt-BR', { year: 'numeric' })}
-                    </p>
-                  </div>
+                <div className="text-right">
+                  <p className="text-slate-400 font-black text-[10px] uppercase tracking-wider">
+                    {new Date(item.data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+                  </p>
                 </div>
               </div>
             ))}
-
-            {historico.length === 0 && (
-              <p className="text-center py-12 text-slate-600 font-black uppercase text-[10px] tracking-widest italic">Nenhum registro encontrado</p>
-            )}
           </div>
         )}
       </div>
 
-      {/* MODAL SOCIAL */}
       {isModalOpen && (
         <ShareWeightModal
           pesoInicial={pesoInicial}
