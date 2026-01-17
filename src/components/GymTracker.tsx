@@ -235,8 +235,10 @@ export default function GymTracker() {
               )
             )}
 
-            <WeeklyProgress treinos={treinos} metaSemanal={metaSemanal} />
+
             <GoalEditor metaSemanal={metaSemanal} metaAnual={metaAnualDinamica} onUpdateMeta={(v) => { setMetaSemanal(v); }} isEditing={isEditingMetas} setIsEditing={setIsEditingMetas} />
+
+            <WeeklyProgress treinos={treinos} metaSemanal={metaSemanal} />
 
             <MonthlyCalendar treinos={treinos} onToggleTreino={handleToggleTreino} onMonthChange={setDataExibida} />
 
