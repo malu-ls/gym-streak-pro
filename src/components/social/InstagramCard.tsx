@@ -1,4 +1,6 @@
-import { Flame, CheckCircle2, Shield } from 'lucide-react';
+"use client";
+
+import { Flame, CheckCircle2, Trophy, Activity } from 'lucide-react';
 
 interface Props {
   treinosCount: number;
@@ -9,73 +11,143 @@ interface Props {
   bateuMetaMensal: boolean;
   rank: { nome: string; emoji: string };
   treinouHoje: boolean;
+  mesNome: string;
+  ano: number;
+  concluidosSemana: number;
+  metaSemanal: number;
 }
 
-export default function InstagramCard({
-  treinosCount, metaAnual, consistencia, treinosNoMes, metaMensalEstimada, bateuMetaMensal, rank, treinouHoje
-}: Props) {
+export default function InstagramCard(props: Props) {
+  const porcentagemSemana = Math.min(100, (props.concluidosSemana / props.metaSemanal) * 100);
+
   return (
-    <div
-      id="resumo-mensal-card"
-      className="fixed w-[1080px] h-[1920px] bg-slate-950 p-24 flex flex-col justify-between"
-      style={{ left: '-2000px', top: 0, zIndex: -1, backgroundColor: '#020617', fontFamily: 'sans-serif' }}
-    >
-      <div className="space-y-6">
-        <h1 className="text-[120px] font-black text-white italic uppercase leading-none tracking-tighter">
-          Gym <span className="text-orange-500">Ignite</span>
-        </h1>
-        <p className="text-4xl text-slate-500 font-bold uppercase tracking-[12px]">
-          Status de {new Date().toLocaleDateString('pt-BR', { month: 'long' })}
-        </p>
-      </div>
-
-      {/* Banner de Status Integrado - Sem sobreposição */}
-      <div className="w-full">
-        {treinouHoje ? (
-          <div className="bg-orange-500 py-8 px-12 rounded-[40px] shadow-[0_20px_60px_rgba(249,115,22,0.3)] border-4 border-white/10 flex items-center justify-center gap-6">
-            <CheckCircle2 className="w-16 h-16 text-white" />
-            <p className="text-6xl font-black uppercase italic text-white tracking-widest">Hoje Tá Pago 🔥</p>
-          </div>
-        ) : (
-          <div className="bg-slate-900 py-8 px-12 rounded-[40px] border-4 border-slate-800 flex items-center justify-center gap-6">
-            <Shield className="w-16 h-16 text-slate-700" />
-            <p className="text-6xl font-black uppercase italic text-slate-600 tracking-widest">Foco na Meta 🛡️</p>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-gradient-to-br from-orange-500/10 via-slate-900 to-slate-950 p-16 rounded-[100px] border-4 border-orange-500/20 text-center space-y-4">
-        <p className="text-slate-500 text-4xl font-black uppercase tracking-[10px]">Nível Atual</p>
-        <p className="text-[110px] leading-tight font-black text-white uppercase italic">
-          {rank.emoji} {rank.nome}
-        </p>
-      </div>
-
-      <div className="space-y-8">
-        <div className="grid grid-cols-2 gap-8">
-          <div className="bg-slate-900/50 p-12 rounded-[60px] border-4 border-slate-800/50">
-            <p className="text-slate-500 text-3xl font-bold uppercase mb-4 tracking-widest text-left">Anual</p>
-            <p className="text-9xl font-black text-white text-left">{treinosCount}<span className="text-slate-700 text-4xl ml-2">/{metaAnual}</span></p>
-          </div>
-          <div className="bg-slate-900/50 p-12 rounded-[60px] border-4 border-slate-800/50">
-            <p className="text-slate-500 text-3xl font-bold uppercase mb-4 tracking-widest text-left">Consistência</p>
-            <p className="text-9xl font-black text-blue-500 text-left">{consistencia}%</p>
+    <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', zIndex: -100 }}>
+      <div
+        id="resumo-mensal-card"
+        style={{
+          width: '1080px',
+          height: '1920px',
+          backgroundColor: '#020617',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '70px', // Reduzido para evitar cortes laterais e no footer
+          boxSizing: 'border-box',
+          fontFamily: 'sans-serif',
+        }}
+      >
+        {/* HEADER COM MÊS E ANO DE REFERÊNCIA */}
+        <div style={{ marginBottom: '60px', textAlign: 'center' }}>
+          <h1 style={{ color: 'white', fontSize: '110px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', margin: 0, letterSpacing: '-5px' }}>
+            GYM <span style={{ color: '#f97316' }}>IGNITE</span>
+          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
+            <div style={{ height: '3px', width: '60px', backgroundColor: '#f97316', opacity: 0.5 }}></div>
+            <p style={{ color: '#64748b', fontSize: '32px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '10px', margin: 0 }}>
+              ESTATÍSTICAS {props.mesNome} {props.ano}
+            </p>
+            <div style={{ height: '3px', width: '60px', backgroundColor: '#f97316', opacity: 0.5 }}></div>
           </div>
         </div>
 
-        <div className="bg-slate-900/50 p-12 rounded-[60px] border-4 border-slate-800/50 flex justify-between items-center">
+        {/* STATUS EM LINHA ÚNICA (REDUZIDO PARA CABER) */}
+        <div style={{ marginBottom: '50px' }}>
+          <div style={{
+            backgroundColor: props.treinouHoje ? 'rgba(249, 115, 22, 0.1)' : 'rgba(255,255,255,0.02)',
+            height: '150px',
+            borderRadius: '75px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '0 40px',
+            border: props.treinouHoje ? '4px solid #f97316' : '2px solid rgba(255,255,255,0.05)',
+            gap: '20px'
+          }}>
+            <span style={{
+              color: props.treinouHoje ? '#f97316' : '#475569',
+              fontSize: '55px', // Fonte reduzida para garantir linha única sem cortes
+              fontWeight: '900',
+              fontStyle: 'italic',
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap'
+            }}>
+              {props.treinouHoje ? 'HOJE TÁ PAGO 🔥' : 'A CHAMA SEGUE ACESA 🛡️'}
+            </span>
+          </div>
+        </div>
+
+        {/* META DA SEMANA */}
+        <div style={{
+          backgroundColor: '#0f172a',
+          borderRadius: '70px',
+          padding: '50px',
+          marginBottom: '50px',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <Activity color="#f97316" size={35} />
+              <span style={{ color: 'white', fontSize: '38px', fontWeight: '900', textTransform: 'uppercase', fontStyle: 'italic' }}>Meta da Semana</span>
+            </div>
+            <span style={{ color: '#f97316', fontSize: '60px', fontWeight: '900' }}>{props.concluidosSemana}/{props.metaSemanal}</span>
+          </div>
+
+          <div style={{ width: '100%', height: '40px', backgroundColor: '#1e293b', borderRadius: '20px', marginBottom: '40px', overflow: 'hidden' }}>
+            <div style={{ width: `${porcentagemSemana}%`, height: '100%', backgroundColor: '#f97316', borderRadius: '20px' }}></div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+            {Array.from({ length: props.metaSemanal }).map((_, i) => (
+              <div key={i} style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                backgroundColor: i < props.concluidosSemana ? '#f97316' : '#1e293b',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Flame size={40} color={i < props.concluidosSemana ? 'white' : '#334155'} fill={i < props.concluidosSemana ? 'white' : 'transparent'} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* RANK E VOLUME MENSAL */}
+        <div style={{ display: 'flex', gap: '30px', marginBottom: '50px' }}>
+          <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '60px', padding: '40px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+            <p style={{ color: '#64748b', fontSize: '26px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Rank</p>
+            <div style={{ fontSize: '80px', marginBottom: '5px' }}>{props.rank.emoji}</div>
+            <p style={{ color: 'white', fontSize: '45px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', margin: 0 }}>{props.rank.nome}</p>
+          </div>
+          <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '60px', padding: '40px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
+            <p style={{ color: '#64748b', fontSize: '26px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Volume {props.mesNome}</p>
+            <div style={{ fontSize: '80px', marginBottom: '5px' }}>🗓️</div>
+            <p style={{ color: 'white', fontSize: '80px', fontWeight: '900', margin: 0 }}>{props.treinosNoMes}</p>
+          </div>
+        </div>
+
+        {/* ACUMULADO DO ANO */}
+        <div style={{
+          marginTop: 'auto',
+          backgroundColor: '#f97316',
+          borderRadius: '50px',
+          padding: '45px 60px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
           <div>
-            <p className="text-slate-500 text-3xl font-bold uppercase mb-2 tracking-widest text-left">Meta do Mês</p>
-            <p className="text-9xl font-black text-white text-left">{treinosNoMes} / {metaMensalEstimada}</p>
+            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>Acumulado do Ano</p>
+            <p style={{ color: 'white', fontSize: '85px', fontWeight: '900', margin: 0 }}>{props.treinosCount} <span style={{ fontSize: '40px', opacity: 0.7 }}>/ {props.metaAnual} TREINOS</span></p>
           </div>
-          {bateuMetaMensal && <Flame className="w-24 h-24 text-orange-500 fill-orange-500" />}
+          <Trophy color="white" size={75} />
         </div>
-      </div>
 
-      <div className="flex justify-between items-center border-t-8 border-slate-900 pt-16">
-        <p className="text-6xl text-slate-400 font-black italic uppercase tracking-tighter">A chama nunca apaga</p>
-        <div className="bg-orange-600 p-8 rounded-[40px] shadow-2xl">
-          <Flame className="w-20 h-20 text-white fill-white" />
+        {/* FOOTER AJUSTADO PARA NÃO CORTAR */}
+        <div style={{ marginTop: '50px', textAlign: 'center', paddingBottom: '20px' }}>
+          <p style={{ color: '#334155', fontSize: '32px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', letterSpacing: '12px' }}>
+            GYMIGNITE.APP
+          </p>
         </div>
       </div>
     </div>
