@@ -7,14 +7,22 @@ import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
   treinosCount: number;
-  metaSemanal: number;
   userName: string;
 }
 
-export default function Header({
-  treinosCount,
-  userName,
-}: HeaderProps) {
+// Função utilitária movida para fora para evitar recriação e erros de escopo
+const urlBase64ToUint8Array = (base64String: string) => {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+};
+
+export default function Header({ treinosCount, userName }: HeaderProps) {
   const [isSaindo, setIsSaindo] = useState(false);
   const [isInscrito, setIsInscrito] = useState<boolean | null>(null);
   const [isCarregandoPush, setIsCarregandoPush] = useState(false);
@@ -25,13 +33,16 @@ export default function Header({
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Verifica o estado atual da inscrição ao carregar
   useEffect(() => {
     async function checkSubscription() {
       if ('serviceWorker' in navigator && 'PushManager' in window) {
-        const registration = await navigator.serviceWorker.ready;
-        const subscription = await registration.pushManager.getSubscription();
-        setIsInscrito(!!subscription);
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
+          setIsInscrito(!!subscription);
+        } catch (error) {
+          console.error("Erro ao verificar inscrição:", error);
+        }
       }
     }
     checkSubscription();
@@ -42,32 +53,28 @@ export default function Header({
     setIsCarregandoPush(true);
 
     try {
-      // 1. Solicita permissão
       const permission = await Notification.requestPermission();
-
       if (permission !== 'granted') {
-        alert('Você precisa permitir as notificações para ativar os lembretes de treino.');
+        alert('Permissão de notificação negada.');
         setIsInscrito(false);
+        setIsCarregandoPush(false);
         return;
       }
 
-      // 2. Registra o Service Worker e obtém a inscrição
-      const registration = await navigator.serviceWorker.ready;
+      // Garante que o SW está registrado e ativo
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
 
-      // Converte a chave VAPID pública de base64 para Uint8Array
-      const urlBase64ToUint8Array = (base64String: string) => {
-        const padding = '='.repeat((4 - base64String.length % 4) % 4);
-        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const rawData = window.atob(base64);
-        return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
-      };
+      const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!publicVapidKey) {
+        throw new Error("VAPID public key não encontrada");
+      }
 
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!)
+        applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
       });
 
-      // 3. Envia para a API que criamos
       const res = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,11 +83,14 @@ export default function Header({
 
       if (res.ok) {
         setIsInscrito(true);
-        alert('A chama agora te avisa! Notificações ativadas. 🔥');
+        alert('A chama agora te avisa! 🔥');
+      } else {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Erro na resposta do servidor");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao inscrever para push:', error);
-      alert('Erro ao ativar notificações. Verifique se o app está instalado.');
+      alert(`Erro: ${error.message || 'Verifique se o app está instalado e tente novamente.'}`);
     } finally {
       setIsCarregandoPush(false);
     }
@@ -122,7 +132,6 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-3 w-full md:w-auto relative z-10">
-        {/* BOTÃO DE NOTIFICAÇÃO DINÂMICO */}
         <button
           onClick={handlePushSubscription}
           disabled={isCarregandoPush}
@@ -130,14 +139,11 @@ export default function Header({
             ? 'bg-orange-500/10 border-orange-500/20'
             : 'bg-slate-800/50 border-white/5 hover:bg-slate-800'
             }`}
-          title={isInscrito ? "Lembretes Ativados" : "Ativar Lembretes"}
         >
           {isCarregandoPush ? (
             <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
           ) : isInscrito ? (
             <BellRing className="w-5 h-5 text-orange-500 animate-pulse" />
-          ) : isInscrito === false ? (
-            <BellOff className="w-5 h-5 text-slate-500" />
           ) : (
             <Bell className="w-5 h-5 text-slate-400 group-hover:text-orange-500" />
           )}
@@ -160,14 +166,9 @@ export default function Header({
             <Flame className="w-8 h-8 text-orange-500 fill-orange-500" />
             <div className="absolute inset-0 bg-orange-500 blur-lg opacity-20" />
           </div>
-
           <div className="flex flex-col">
-            <span className="text-2xl font-black leading-none">
-              {treinosCount}
-            </span>
-            <span className="text-[9px] font-black text-orange-500/80 uppercase tracking-widest mt-1">
-              Check-ins
-            </span>
+            <span className="text-2xl font-black leading-none">{treinosCount}</span>
+            <span className="text-[9px] font-black text-orange-500/80 uppercase tracking-widest mt-1">Check-ins</span>
           </div>
         </div>
       </div>

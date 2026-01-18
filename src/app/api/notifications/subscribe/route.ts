@@ -3,7 +3,6 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
-  // ESSA LINHA É A CHAVE:
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
@@ -13,10 +12,10 @@ export async function POST(req: Request) {
       cookies: {
         get(name: string) { return cookieStore.get(name)?.value },
         set(name: string, value: string, options: any) {
-          try { cookieStore.set({ name, value, ...options }) } catch (e) { }
+          try { cookieStore.set({ name, value, ...options }) } catch { /* Ignore */ }
         },
         remove(name: string, options: any) {
-          try { cookieStore.set({ name, value: '', ...options }) } catch (e) { }
+          try { cookieStore.set({ name, value: '', ...options }) } catch { /* Ignore */ }
         },
       },
     }
@@ -24,21 +23,28 @@ export async function POST(req: Request) {
 
   try {
     const subscription = await req.json();
-    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    // SEGURANÇA: Usamos getUser() em vez de getSession() para validar a autenticidade
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    const { error } = await supabase
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    // Upsert na tabela
+    const { error: dbError } = await supabase
       .from('push_subscriptions')
       .upsert({
-        user_id: session.user.id,
-        subscription_json: subscription
+        user_id: user.id,
+        subscription_json: subscription,
+        updated_at: new Date().toISOString() // Agora a coluna existirá após o SQL acima
       }, { onConflict: 'user_id' });
 
-    if (error) throw error;
+    if (dbError) throw dbError;
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Erro no servidor:", error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Erro no Subscribe:", error.message);
+    return NextResponse.json({ error: 'Erro ao processar inscrição' }, { status: 500 });
   }
 }
