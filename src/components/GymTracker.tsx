@@ -88,17 +88,31 @@ export default function GymTracker() {
 
   useEffect(() => { carregarDados(); }, [carregarDados]);
 
-  // CORREÇÃO: Atualização da Meta Semanal no Banco de Dados
+  // --- LÓGICA DE NOTIFICAÇÃO (DEEP LINK) ---
+  useEffect(() => {
+    if (!isCarregado) return;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'open_mood_selector') {
+      const hoje = new Date().toLocaleDateString('en-CA');
+      const jaTreinou = treinos.some(t => t.data === hoje);
+
+      if (!jaTreinou) {
+        setShowMoodSelector({ data: hoje });
+        // Limpa a URL para evitar re-abertura indesejada
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [isCarregado, treinos]);
+
   const handleUpdateMeta = async (novaMeta: number) => {
     setMetaSemanal(novaMeta);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { error } = await supabase.from('perfis')
+        await supabase.from('perfis')
           .update({ meta_semanal: novaMeta })
           .eq('id', session.user.id);
-
-        if (error) throw error;
       }
     } catch (e) {
       console.error("Erro ao salvar meta:", e);
@@ -161,10 +175,24 @@ export default function GymTracker() {
     }
   };
 
+  const treinosDaSemana = useMemo(() => {
+    const hoje = new Date();
+    const diaDaSemana = hoje.getDay(); // 0 = Domingo
+    const domingo = new Date(hoje);
+    domingo.setDate(hoje.getDate() - diaDaSemana);
+    domingo.setHours(0, 0, 0, 0);
+
+    return treinos.filter(t => {
+      const dataTreino = new Date(t.data + "T00:00:00");
+      return dataTreino >= domingo;
+    });
+  }, [treinos]);
+
   const stats = useMemo(() => {
     const hojeLocal = new Date().toLocaleDateString('en-CA');
     const prefixoMes = `${dataExibida.getFullYear()}-${(dataExibida.getMonth() + 1).toString().padStart(2, '0')}`;
     const treinosNoMes = treinos.filter(t => t.data.startsWith(prefixoMes)).length;
+
     return {
       treinosNoMes,
       nomeMes: dataExibida.toLocaleDateString('pt-BR', { month: 'long' }),
@@ -186,59 +214,32 @@ export default function GymTracker() {
     return Math.max(1, Math.floor((diffEmDias / 7) * metaSemanal));
   }, [metaSemanal, userData.createdAt]);
 
-  const treinosDaSemana = useMemo(() => {
-    const hoje = new Date();
-    // No JS, getDay() retorna: 0 para Domingo, 1 para Segunda, etc.
-    const diaDaSemana = hoje.getDay();
-
-    // Para começar no Domingo, o "início da semana" é apenas o dia atual menos o índice do dia
-    const domingoDestaSemana = new Date(hoje);
-    domingoDestaSemana.setDate(hoje.getDate() - diaDaSemana);
-    domingoDestaSemana.setHours(0, 0, 0, 0);
-
-    // O fim da semana (Sábado)
-    const sabadoDestaSemana = new Date(domingoDestaSemana);
-    sabadoDestaSemana.setDate(domingoDestaSemana.getDate() + 6);
-    sabadoDestaSemana.setHours(23, 59, 59, 999);
-
-    return treinos.filter(t => {
-      const dataTreino = new Date(t.data + "T00:00:00");
-      return dataTreino >= domingoDestaSemana && dataTreino <= sabadoDestaSemana;
-    });
-  }, [treinos]);
-
-  // CORREÇÃO: Função de compartilhamento com API Nativa
   const compartilharFrequencia = async () => {
     const node = document.getElementById('resumo-mensal-card');
     if (!node) return;
     setIsExportando(true);
-
     try {
       const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, backgroundColor: '#020617' });
       const blob = await (await fetch(dataUrl)).blob();
-      const file = new File([blob], `ignite-stats-${stats.nomeMes}.png`, { type: 'image/png' });
+      const file = new File([blob], `ignite-stats.png`, { type: 'image/png' });
 
       if (navigator.share && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Meu progresso no Ignite',
-          text: 'Foco na missão! 💪'
-        });
+        await navigator.share({ files: [file], title: 'Ignite Evolution', text: 'Chama acesa! 🔥' });
       } else {
         const link = document.createElement('a');
-        link.download = `ignite-stats-${stats.nomeMes}.png`;
+        link.download = `ignite-stats.png`;
         link.href = dataUrl;
         link.click();
       }
     } catch (e) {
-      console.error("Erro ao compartilhar:", e);
+      console.error(e);
     } finally {
       setIsExportando(false);
     }
   };
 
   if (!isCarregado) return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-6">
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center gap-6 text-white">
       <Loader2 className="w-10 h-10 text-orange-500 animate-spin" />
       <p className="text-slate-500 font-black uppercase text-[10px] tracking-[0.5em]">Sincronizando Chama</p>
     </div>
@@ -256,7 +257,7 @@ export default function GymTracker() {
       <div className="max-w-4xl mx-auto">
         {activeTab === 'frequencia' ? (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <Header treinosCount={treinos.length} metaSemanal={metaSemanal} userName={userData.nome} onSolicitarNotificacao={() => { }} />
+            <Header treinosCount={treinos.length} metaSemanal={metaSemanal} userName={userData.nome} />
 
             {userData.sexo === 'feminino' && (
               userData.ultimoCiclo ? (
