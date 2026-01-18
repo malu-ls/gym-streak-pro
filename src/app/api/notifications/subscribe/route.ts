@@ -10,12 +10,17 @@ export async function POST(req: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) { return cookieStore.get(name)?.value },
-        set(name: string, value: string, options: any) {
-          try { cookieStore.set({ name, value, ...options }) } catch { /* Ignore */ }
+        getAll() {
+          return cookieStore.getAll();
         },
-        remove(name: string, options: any) {
-          try { cookieStore.set({ name, value: '', ...options }) } catch { /* Ignore */ }
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // O Next.js pode lançar erro se os cookies forem alterados em Server Action/Route Handler
+          }
         },
       },
     }
@@ -24,27 +29,46 @@ export async function POST(req: Request) {
   try {
     const subscription = await req.json();
 
-    // SEGURANÇA: Usamos getUser() em vez de getSession() para validar a autenticidade
+    // 1. Validação básica do payload antes de tocar no banco
+    if (!subscription || !subscription.endpoint) {
+      return NextResponse.json({ error: 'Inscrição inválida' }, { status: 400 });
+    }
+
+    // 2. getUser() é a forma segura de validar o JWT no servidor
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      console.error("Erro Auth:", authError?.message);
+      return NextResponse.json({ error: 'Sessão expirada ou inválida' }, { status: 401 });
     }
 
-    // Upsert na tabela
+    // 3. Upsert com tratamento de erro detalhado
     const { error: dbError } = await supabase
       .from('push_subscriptions')
-      .upsert({
-        user_id: user.id,
-        subscription_json: subscription,
-        updated_at: new Date().toISOString() // Agora a coluna existirá após o SQL acima
-      }, { onConflict: 'user_id' });
+      .upsert(
+        {
+          user_id: user.id,
+          subscription_json: subscription,
+          updated_at: new Date().toISOString()
+        },
+        {
+          onConflict: 'user_id',
+          ignoreDuplicates: false
+        }
+      );
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      console.error("Erro Supabase RLS/DB:", dbError.message);
+      return NextResponse.json({ error: dbError.message }, { status: 403 });
+    }
 
     return NextResponse.json({ success: true });
+
   } catch (error: any) {
-    console.error("Erro no Subscribe:", error.message);
-    return NextResponse.json({ error: 'Erro ao processar inscrição' }, { status: 500 });
+    console.error("Erro Crítico no Servidor:", error.message);
+    return NextResponse.json(
+      { error: 'Erro interno ao processar inscrição' },
+      { status: 500 }
+    );
   }
 }
