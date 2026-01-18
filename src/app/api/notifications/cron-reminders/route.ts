@@ -73,7 +73,7 @@ export async function GET(req: Request) {
     });
 
     const resultados = await Promise.all(promessasDeEnvio);
-    const enviadosComSucesso = resultados.filter(r => r !== null).length;
+    const enviadosComSucesso = resultados.filter((r: any) => r !== null).length;
 
     return NextResponse.json({
       success: true,
