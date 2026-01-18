@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
-  // Em versões novas do Next.js, cookies() deve ser aguardado ou tratado como Promise
+  // CORREÇÃO: cookies() agora é uma Promise no Next.js 15
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
