@@ -57,7 +57,7 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
 
       // 1. REGISTRO FORÇADO (Cache Busting)
       // Adicionamos um timestamp para obrigar o navegador a baixar o arquivo novo
-      const swUrl = `/notifications-sw.js?v=${Date.now()}`;
+      const swUrl = `/gym-ignite-push.js?v=${Date.now()}`;
       const registration = await navigator.serviceWorker.register(swUrl, {
         scope: '/',
       });
