@@ -257,7 +257,7 @@ export default function GymTracker() {
       <div className="max-w-4xl mx-auto">
         {activeTab === 'frequencia' ? (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <Header treinosCount={treinos.length} metaSemanal={metaSemanal} userName={userData.nome} />
+            <Header treinosCount={treinos.length} userName={userData.nome} />
 
             {userData.sexo === 'feminino' && (
               userData.ultimoCiclo ? (
