@@ -1,17 +1,20 @@
 /* eslint-disable no-restricted-globals */
 
+self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => event.waitUntil(clients.claim()));
+
 self.addEventListener('push', function (event) {
   let data = {
     title: 'Gym Ignite 🔥',
     body: 'Bora treinar? A chama não pode apagar!'
   };
 
-  try {
-    if (event.data) {
+  if (event.data) {
+    try {
       data = event.data.json();
+    } catch (e) {
+      data = { title: 'Gym Ignite', body: event.data.text() };
     }
-  } catch (e) {
-    console.error('Erro ao ler JSON do push');
   }
 
   const options = {
