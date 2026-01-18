@@ -1,6 +1,7 @@
 "use client";
 
-import { Flame, CheckCircle2, Trophy, Activity } from 'lucide-react';
+import { Flame, Activity, Trophy } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface Props {
   treinosCount: number;
@@ -18,7 +19,11 @@ interface Props {
 }
 
 export default function InstagramCard(props: Props) {
-  const porcentagemSemana = Math.min(100, (props.concluidosSemana / props.metaSemanal) * 100);
+  // Mantemos o design intacto, apenas garantindo que a porcentagem
+  // respeite o valor que o componente pai (GymTracker) já calculou como Domingo.
+  const porcentagemSemana = useMemo(() =>
+    Math.min(100, (props.concluidosSemana / props.metaSemanal) * 100)
+    , [props.concluidosSemana, props.metaSemanal]);
 
   return (
     <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', zIndex: -100 }}>
@@ -30,7 +35,7 @@ export default function InstagramCard(props: Props) {
           backgroundColor: '#020617',
           display: 'flex',
           flexDirection: 'column',
-          padding: '70px', // Reduzido para evitar cortes laterais e no footer
+          padding: '70px',
           boxSizing: 'border-box',
           fontFamily: 'sans-serif',
         }}
@@ -49,7 +54,7 @@ export default function InstagramCard(props: Props) {
           </div>
         </div>
 
-        {/* STATUS EM LINHA ÚNICA (REDUZIDO PARA CABER) */}
+        {/* STATUS EM LINHA ÚNICA */}
         <div style={{ marginBottom: '50px' }}>
           <div style={{
             backgroundColor: props.treinouHoje ? 'rgba(249, 115, 22, 0.1)' : 'rgba(255,255,255,0.02)',
@@ -64,7 +69,7 @@ export default function InstagramCard(props: Props) {
           }}>
             <span style={{
               color: props.treinouHoje ? '#f97316' : '#475569',
-              fontSize: '55px', // Fonte reduzida para garantir linha única sem cortes
+              fontSize: '55px',
               fontWeight: '900',
               fontStyle: 'italic',
               textTransform: 'uppercase',
@@ -75,7 +80,7 @@ export default function InstagramCard(props: Props) {
           </div>
         </div>
 
-        {/* META DA SEMANA */}
+        {/* META DA SEMANA - Respeitando o reset de Domingo */}
         <div style={{
           backgroundColor: '#0f172a',
           borderRadius: '70px',
@@ -88,11 +93,19 @@ export default function InstagramCard(props: Props) {
               <Activity color="#f97316" size={35} />
               <span style={{ color: 'white', fontSize: '38px', fontWeight: '900', textTransform: 'uppercase', fontStyle: 'italic' }}>Meta da Semana</span>
             </div>
-            <span style={{ color: '#f97316', fontSize: '60px', fontWeight: '900' }}>{props.concluidosSemana}/{props.metaSemanal}</span>
+            <span style={{ color: '#f97316', fontSize: '60px', fontWeight: '900' }}>
+              {props.concluidosSemana}/{props.metaSemanal}
+            </span>
           </div>
 
           <div style={{ width: '100%', height: '40px', backgroundColor: '#1e293b', borderRadius: '20px', marginBottom: '40px', overflow: 'hidden' }}>
-            <div style={{ width: `${porcentagemSemana}%`, height: '100%', backgroundColor: '#f97316', borderRadius: '20px' }}></div>
+            <div style={{
+              width: `${porcentagemSemana}%`,
+              height: '100%',
+              backgroundColor: '#f97316',
+              borderRadius: '20px',
+              transition: 'width 0.5s ease-in-out'
+            }}></div>
           </div>
 
           <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
@@ -106,7 +119,11 @@ export default function InstagramCard(props: Props) {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <Flame size={40} color={i < props.concluidosSemana ? 'white' : '#334155'} fill={i < props.concluidosSemana ? 'white' : 'transparent'} />
+                <Flame
+                  size={40}
+                  color={i < props.concluidosSemana ? 'white' : '#334155'}
+                  fill={i < props.concluidosSemana ? 'white' : 'transparent'}
+                />
               </div>
             ))}
           </div>
@@ -143,7 +160,7 @@ export default function InstagramCard(props: Props) {
           <Trophy color="white" size={75} />
         </div>
 
-        {/* FOOTER AJUSTADO PARA NÃO CORTAR */}
+        {/* FOOTER */}
         <div style={{ marginTop: '50px', textAlign: 'center', paddingBottom: '20px' }}>
           <p style={{ color: '#334155', fontSize: '32px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', letterSpacing: '12px' }}>
             GYMIGNITE.APP

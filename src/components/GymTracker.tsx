@@ -36,14 +36,13 @@ export default function GymTracker() {
   const [showMoodSelector, setShowMoodSelector] = useState<{ data: string } | null>(null);
   const [isEditingMetas, setIsEditingMetas] = useState(false);
 
-  // userData atualizado para incluir duracaoPeriodo
   const [userData, setUserData] = useState({
     nome: 'Atleta',
     createdAt: '',
     sexo: '',
     ultimoCiclo: '',
     duracaoCiclo: 28,
-    duracaoPeriodo: 5 // Valor padrão inicial
+    duracaoPeriodo: 5
   });
 
   const supabase = useMemo(() => createBrowserClient(
@@ -71,7 +70,7 @@ export default function GymTracker() {
             sexo: p.sexo,
             ultimoCiclo: p.ultimo_ciclo,
             duracaoCiclo: p.duracao_ciclo || 28,
-            duracaoPeriodo: p.duracao_periodo || 5 // Recupera do banco
+            duracaoPeriodo: p.duracao_periodo || 5
           });
           setMetaSemanal(p.meta_semanal || 4);
         }
@@ -88,6 +87,23 @@ export default function GymTracker() {
   }, [supabase]);
 
   useEffect(() => { carregarDados(); }, [carregarDados]);
+
+  // CORREÇÃO: Atualização da Meta Semanal no Banco de Dados
+  const handleUpdateMeta = async (novaMeta: number) => {
+    setMetaSemanal(novaMeta);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { error } = await supabase.from('perfis')
+          .update({ meta_semanal: novaMeta })
+          .eq('id', session.user.id);
+
+        if (error) throw error;
+      }
+    } catch (e) {
+      console.error("Erro ao salvar meta:", e);
+    }
+  };
 
   const handleToggleTreino = useCallback((dataIso: string) => {
     const treinoExistente = treinos.find(t => t.data === dataIso);
@@ -127,7 +143,6 @@ export default function GymTracker() {
     carregarDados();
   };
 
-  // Função de reset atualizada para suportar os 3 parâmetros do ciclo
   const handleUpdateCycle = async (novaData: string, novaDuracao: number, novaDuracaoPeriodo: number) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
@@ -150,8 +165,6 @@ export default function GymTracker() {
     const hojeLocal = new Date().toLocaleDateString('en-CA');
     const prefixoMes = `${dataExibida.getFullYear()}-${(dataExibida.getMonth() + 1).toString().padStart(2, '0')}`;
     const treinosNoMes = treinos.filter(t => t.data.startsWith(prefixoMes)).length;
-    const total = treinos.length;
-
     return {
       treinosNoMes,
       nomeMes: dataExibida.toLocaleDateString('pt-BR', { month: 'long' }),
@@ -159,9 +172,9 @@ export default function GymTracker() {
       bateuMetaMensal: treinosNoMes >= (metaSemanal * 4),
       metaMensal: metaSemanal * 4,
       treinouHoje: treinos.some(t => t.data === hojeLocal),
-      rank: total <= 10 ? { nome: "Iniciante", emoji: "🐣" } :
-        total <= 30 ? { nome: "Focado", emoji: "🔥" } :
-          total <= 80 ? { nome: "Constante", emoji: "🏋️‍♂️" } :
+      rank: treinos.length <= 10 ? { nome: "Iniciante", emoji: "🐣" } :
+        treinos.length <= 30 ? { nome: "Focado", emoji: "🔥" } :
+          treinos.length <= 80 ? { nome: "Constante", emoji: "🏋️‍♂️" } :
             { nome: "Gladiador", emoji: "🛡️" }
     };
   }, [treinos, metaSemanal, dataExibida]);
@@ -175,30 +188,53 @@ export default function GymTracker() {
 
   const treinosDaSemana = useMemo(() => {
     const hoje = new Date();
+    // No JS, getDay() retorna: 0 para Domingo, 1 para Segunda, etc.
     const diaDaSemana = hoje.getDay();
-    const diffParaSegunda = diaDaSemana === 0 ? -6 : 1 - diaDaSemana;
-    const segundaFeira = new Date(hoje);
-    segundaFeira.setDate(hoje.getDate() + diffParaSegunda);
-    segundaFeira.setHours(0, 0, 0, 0);
+
+    // Para começar no Domingo, o "início da semana" é apenas o dia atual menos o índice do dia
+    const domingoDestaSemana = new Date(hoje);
+    domingoDestaSemana.setDate(hoje.getDate() - diaDaSemana);
+    domingoDestaSemana.setHours(0, 0, 0, 0);
+
+    // O fim da semana (Sábado)
+    const sabadoDestaSemana = new Date(domingoDestaSemana);
+    sabadoDestaSemana.setDate(domingoDestaSemana.getDate() + 6);
+    sabadoDestaSemana.setHours(23, 59, 59, 999);
 
     return treinos.filter(t => {
       const dataTreino = new Date(t.data + "T00:00:00");
-      return dataTreino >= segundaFeira && dataTreino <= hoje;
+      return dataTreino >= domingoDestaSemana && dataTreino <= sabadoDestaSemana;
     });
   }, [treinos]);
 
+  // CORREÇÃO: Função de compartilhamento com API Nativa
   const compartilharFrequencia = async () => {
     const node = document.getElementById('resumo-mensal-card');
     if (!node) return;
     setIsExportando(true);
+
     try {
-      const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, cacheBust: true, backgroundColor: '#020617' });
-      const link = document.createElement('a');
-      link.download = `gym-ignite-${stats.nomeMes}.png`;
-      link.href = dataUrl;
-      link.click();
-    } catch (e) { console.error("Erro na exportação:", e); }
-    finally { setIsExportando(false); }
+      const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, backgroundColor: '#020617' });
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], `ignite-stats-${stats.nomeMes}.png`, { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Meu progresso no Ignite',
+          text: 'Foco na missão! 💪'
+        });
+      } else {
+        const link = document.createElement('a');
+        link.download = `ignite-stats-${stats.nomeMes}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (e) {
+      console.error("Erro ao compartilhar:", e);
+    } finally {
+      setIsExportando(false);
+    }
   };
 
   if (!isCarregado) return (
@@ -235,8 +271,13 @@ export default function GymTracker() {
               )
             )}
 
-
-            <GoalEditor metaSemanal={metaSemanal} metaAnual={metaAnualDinamica} onUpdateMeta={(v) => { setMetaSemanal(v); }} isEditing={isEditingMetas} setIsEditing={setIsEditingMetas} />
+            <GoalEditor
+              metaSemanal={metaSemanal}
+              metaAnual={metaAnualDinamica}
+              onUpdateMeta={handleUpdateMeta}
+              isEditing={isEditingMetas}
+              setIsEditing={setIsEditingMetas}
+            />
 
             <WeeklyProgress treinos={treinos} metaSemanal={metaSemanal} />
 

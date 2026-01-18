@@ -1,27 +1,38 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { Info } from 'lucide-react';
 
 interface Props {
   treinos: { data: string; hora: number }[];
   feriados: { date: string }[];
-  mesReferencia?: Date; // O '?' torna a prop opcional para evitar erros
+  mesReferencia?: Date;
   metaSemanal: number;
 }
 
 export default function BadgeGrid({ treinos, feriados, mesReferencia, metaSemanal }: Props) {
   const conquistas = useMemo(() => {
-    // FALLBACK: Se mesReferencia não vier, usa a data atual para não quebrar o app
     const dataSegura = mesReferencia || new Date();
-
     const anoRef = dataSegura.getFullYear();
     const mesRef = (dataSegura.getMonth() + 1).toString().padStart(2, '0');
     const prefixoMes = `${anoRef}-${mesRef}`;
 
-    // Lógica do Prêmio Consistente
+    // 1. Lógica de Consistência Mensal (💎)
     const treinosNoMes = treinos.filter(t => t.data.startsWith(prefixoMes)).length;
-    const metaEsperadaMes = metaSemanal * 4;
+
+    // Cálculo inteligente: No início do mês, a meta esperada é proporcional aos dias passados
+    // para a badge não ficar impossível de ganhar no dia 1.
+    const hoje = new Date();
+    const isMesAtual = hoje.getFullYear() === anoRef && hoje.getMonth() === dataSegura.getMonth();
+
+    let metaEsperadaMes;
+    if (isMesAtual) {
+      const diasPassados = hoje.getDate();
+      const semanasPassadas = Math.max(1, diasPassados / 7);
+      metaEsperadaMes = Math.floor(metaSemanal * semanasPassadas);
+    } else {
+      metaEsperadaMes = metaSemanal * 4;
+    }
+
     const porcentagemMensal = metaEsperadaMes > 0 ? (treinosNoMes / metaEsperadaMes) * 100 : 0;
 
     return [
@@ -58,39 +69,48 @@ export default function BadgeGrid({ treinos, feriados, mesReferencia, metaSemana
         id: 4,
         titulo: 'Consistente',
         emoji: '💎',
-        descricao: 'Mantenha consistência acima de 80% no mês.',
-        concluido: porcentagemMensal >= 80 // Agora acenderá se bater a meta do mês
+        descricao: 'Mantenha consistência acima de 80% em relação à sua meta.',
+        concluido: porcentagemMensal >= 80
       }
     ];
   }, [treinos, feriados, mesReferencia, metaSemanal]);
 
   return (
-    <div className="bg-slate-900/50 p-6 rounded-3xl border border-white/5">
-      <h3 className="text-[10px] font-black text-slate-500 uppercase mb-8 tracking-widest text-center">
-        Conquistas
+    <div className="bg-slate-900/50 p-6 rounded-[40px] border border-white/5 backdrop-blur-xl">
+      <h3 className="text-[10px] font-black text-slate-500 uppercase mb-8 tracking-[0.4em] text-center">
+        Sistema de Conquistas
       </h3>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {conquistas.map(badge => (
           <div
             key={badge.id}
-            className={`group relative p-8 rounded-2xl border text-center transition-all duration-500 ${badge.concluido
-              ? 'bg-orange-500/10 border-orange-500/40 opacity-100 grayscale-0 shadow-[0_0_20px_rgba(249,115,22,0.1)]'
-              : 'bg-slate-800/20 border-slate-800/50 opacity-30 grayscale'
+            className={`group relative p-6 rounded-[32px] border text-center transition-all duration-700 ${badge.concluido
+              ? 'bg-orange-500/10 border-orange-500/30 opacity-100 shadow-[0_20px_40px_rgba(249,115,22,0.05)]'
+              : 'bg-slate-800/10 border-white/5 opacity-20 grayscale'
               }`}
           >
-            {/* Tooltip de Descrição */}
-            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-full max-w-[180px] pointer-events-none z-50">
-              <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-300">
-                <div className="bg-slate-800 text-slate-200 text-[10px] font-bold p-3 rounded-xl border border-slate-700">
+            {/* Tooltip Mobile Friendly */}
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-40 pointer-events-none z-50">
+              <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-2">
+                <div className="bg-slate-800 text-white text-[9px] font-black uppercase tracking-widest p-3 rounded-2xl border border-white/10 shadow-2xl">
                   {badge.descricao}
                 </div>
               </div>
             </div>
 
-            <div className="text-5xl mb-3 select-none">{badge.emoji}</div>
-            <div className={`text-[11px] font-black uppercase tracking-wider ${badge.concluido ? 'text-orange-400' : 'text-slate-500'}`}>
+            <div className={`text-5xl mb-4 transition-transform duration-500 ${badge.concluido ? 'group-hover:scale-125' : ''}`}>
+              {badge.emoji}
+            </div>
+            <div className={`text-[10px] font-black uppercase tracking-widest ${badge.concluido ? 'text-white' : 'text-slate-600'}`}>
               {badge.titulo}
             </div>
+
+            {/* Indicador de bloqueio */}
+            {!badge.concluido && (
+              <div className="absolute top-3 right-3 opacity-20">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+              </div>
+            )}
           </div>
         ))}
       </div>

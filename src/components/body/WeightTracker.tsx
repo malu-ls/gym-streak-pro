@@ -34,22 +34,14 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
     }
   }
 
-  // --- LÓGICA DINÂMICA DE FASE (RETENÇÃO DE LÍQUIDOS) ---
   const statusRetencao = useMemo(() => {
     if (!ultimoCiclo || !duracaoCiclo) return null;
-
     const hoje = new Date();
     const inicio = new Date(ultimoCiclo);
     const diffDias = Math.floor((hoje.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24));
     const diaAtual = (diffDias % duracaoCiclo) + 1;
-
-    // Fase Pré-Menstrual geralmente ocorre nos últimos 5-7 dias do ciclo
     const isPreMenstrual = diaAtual > (duracaoCiclo - 7);
-
-    return {
-      isPreMenstrual,
-      diaAtual
-    };
+    return { isPreMenstrual, diaAtual };
   }, [ultimoCiclo, duracaoCiclo]);
 
   const pesoAtual = useMemo(() => (historico.length > 0 ? Number(historico[0].peso) : 0), [historico]);
@@ -88,41 +80,36 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
   return (
     <div className="space-y-6 animate-in fade-in duration-700">
 
-      {/* TÍTULO DA SEÇÃO */}
-      <header className="p-12 bg-slate-900/40 rounded-[48px] border border-white/5 text-center backdrop-blur-xl">
-        <h1 className="text-4xl font-black italic uppercase text-white tracking-tighter">
-          Corpo <span className="text-orange-500">& Peso</span>
-        </h1>
-        <p className="text-slate-500 text-[10px] font-black uppercase mt-3 tracking-[0.5em]">Personal Tracker</p>
-      </header>
+      {/* TÍTULO DA SEÇÃO - Englobado no ID de captura para o compartilhamento */}
+      <div id="resumo-peso-card" className="space-y-6">
+        <header className="p-12 bg-slate-900/40 rounded-[48px] border border-white/5 text-center backdrop-blur-xl">
+          <h1 className="text-4xl font-black italic uppercase text-white tracking-tighter">
+            Corpo <span className="text-orange-500">& Peso</span>
+          </h1>
+          <p className="text-slate-500 text-[10px] font-black uppercase mt-3 tracking-[0.5em]">Personal Tracker</p>
+        </header>
 
-      {/* ALERTA DINÂMICO DE PESO */}
-      {statusRetencao && (
-        <div className={`p-6 rounded-[32px] border flex items-start gap-4 transition-colors duration-500 ${statusRetencao.isPreMenstrual
-          ? "bg-blue-500/10 border-blue-500/20"
-          : "bg-emerald-500/10 border-emerald-500/20"
-          }`}>
-          <div className={`p-2 rounded-xl ${statusRetencao.isPreMenstrual ? "bg-blue-500/20" : "bg-emerald-500/20"
+        {/* ALERTA DINÂMICO DE PESO */}
+        {statusRetencao && (
+          <div className={`p-6 rounded-[32px] border flex items-start gap-4 transition-colors duration-500 ${statusRetencao.isPreMenstrual ? "bg-blue-500/10 border-blue-500/20" : "bg-emerald-500/10 border-emerald-500/20"
             }`}>
-            {statusRetencao.isPreMenstrual
-              ? <Droplets className="text-blue-400 w-5 h-5" />
-              : <Check className="text-emerald-400 w-5 h-5" />
-            }
+            <div className={`p-2 rounded-xl ${statusRetencao.isPreMenstrual ? "bg-blue-500/20" : "bg-emerald-500/20"}`}>
+              {statusRetencao.isPreMenstrual ? <Droplets className="text-blue-400 w-5 h-5" /> : <Check className="text-emerald-400 w-5 h-5" />}
+            </div>
+            <div className="space-y-1">
+              <h4 className={`text-[11px] font-black uppercase tracking-widest ${statusRetencao.isPreMenstrual ? "text-blue-400" : "text-emerald-400"}`}>
+                Nota de Performance
+              </h4>
+              <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
+                {statusRetencao.isPreMenstrual
+                  ? "Atenção: Você está na fase pré-menstrual. A balança pode subir até 2kg por retenção hídrica. Isso não é gordura!"
+                  : "Seu corpo não deve apresentar retenção hídrica agora. Momento perfeito para validar seus resultados reais."
+                }
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <h4 className={`text-[11px] font-black uppercase tracking-widest ${statusRetencao.isPreMenstrual ? "text-blue-400" : "text-emerald-400"
-              }`}>
-              Nota de Performance
-            </h4>
-            <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
-              {statusRetencao.isPreMenstrual
-                ? "Atenção: Você está na fase pré-menstrual. A balança pode subir até 2kg por retenção hídrica. Isso não é gordura!"
-                : "Seu corpo não deve apresentar retenção hídrica agora. Momento perfeito para validar seus resultados reais."
-              }
-            </p>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* GRÁFICO DE EVOLUÇÃO */}
       {historico.length > 1 && (
@@ -134,7 +121,7 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
             </div>
             {perdaTotal > 0 && (
               <span className="bg-orange-500/10 text-orange-500 text-[10px] font-black px-3 py-1 rounded-full border border-orange-500/20">
-                -{perdaTotal.toFixed(1)} KG ELIMINADOS
+                -{perdaTotal.toFixed(1)} KG
               </span>
             )}
           </div>
@@ -168,7 +155,6 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
           </div>
           <h2 className="text-xl font-black uppercase text-white tracking-tight italic">Registrar Peso</h2>
         </div>
-
         <div className="flex gap-4">
           <div className="flex-1 relative group">
             <input
@@ -181,7 +167,6 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
             />
             <span className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-600 font-black uppercase text-xs tracking-widest">KG</span>
           </div>
-
           <button
             onClick={handleSalvar}
             disabled={isSalvando || !pesoInput}
@@ -192,6 +177,17 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
         </div>
       </div>
 
+      {/* BOTÃO DE COMPARTILHAR - Corrigido para aparecer sempre que houver dados */}
+      {historico.length > 0 && (
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="w-full bg-slate-800 hover:bg-slate-700 p-6 rounded-[32px] border border-white/5 flex items-center justify-center gap-3 transition-all active:scale-95 group shadow-xl"
+        >
+          <Share2 className="w-5 h-5 text-orange-500 group-hover:scale-110 transition-transform" />
+          <span className="text-xs font-black uppercase text-white tracking-widest">Exportar Evolução Corporal</span>
+        </button>
+      )}
+
       {/* HISTÓRICO */}
       <div className="bg-slate-900/50 p-8 rounded-[40px] border border-white/5">
         <div className="flex items-center gap-3 mb-8 text-slate-500">
@@ -201,7 +197,7 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
 
         {isLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="animate-spin text-orange-500 w-10 h-10" /></div>
-        ) : (
+        ) : historico.length > 0 ? (
           <div className="space-y-4">
             {historico.map((item) => (
               <div key={item.id} className="group flex justify-between items-center p-6 bg-white/[0.02] hover:bg-white/[0.05] rounded-[28px] border border-white/5 transition-all">
@@ -217,6 +213,10 @@ export default function WeightTracker({ ultimoCiclo, duracaoCiclo, duracaoPeriod
                 </div>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="text-center py-10 opacity-30 italic text-xs uppercase font-black tracking-widest">
+            Nenhum registro de peso ainda
           </div>
         )}
       </div>

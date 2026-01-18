@@ -9,19 +9,25 @@ interface Props {
 }
 
 export default function WeeklyProgress({ treinos, metaSemanal }: Props) {
-  // 1. Calcular o início (segunda) e fim (domingo) da semana atual
+  // 1. Calcular o início (domingo) e fim (sábado) da semana atual
   const hoje = new Date();
-  const diaDaSemana = hoje.getDay(); // 0 (dom) a 6 (sab)
-  const diffParaSegunda = diaDaSemana === 0 ? -6 : 1 - diaDaSemana;
+  const diaDaSemana = hoje.getDay(); // 0 (domingo) a 6 (sábado)
 
-  const segundaFeira = new Date(hoje);
-  segundaFeira.setDate(hoje.getDate() + diffParaSegunda);
-  segundaFeira.setHours(0, 0, 0, 0);
+  // O Domingo desta semana é hoje menos o número de dias passados desde domingo
+  const domingoDestaSemana = new Date(hoje);
+  domingoDestaSemana.setDate(hoje.getDate() - diaDaSemana);
+  domingoDestaSemana.setHours(0, 0, 0, 0);
 
-  // 2. Filtrar treinos que aconteceram nesta semana
+  // O Sábado desta semana (final do ciclo)
+  const sabadoDestaSemana = new Date(domingoDestaSemana);
+  sabadoDestaSemana.setDate(domingoDestaSemana.getDate() + 6);
+  sabadoDestaSemana.setHours(23, 59, 59, 999);
+
+  // 2. Filtrar treinos que aconteceram nesta janela (Dom a Sáb)
   const treinosDaSemana = treinos.filter(t => {
+    // Usamos T00:00:00 para garantir que a data seja tratada no fuso local
     const dataTreino = new Date(t.data + "T00:00:00");
-    return dataTreino >= segundaFeira && dataTreino <= hoje;
+    return dataTreino >= domingoDestaSemana && dataTreino <= sabadoDestaSemana;
   });
 
   const concluidos = treinosDaSemana.length;
@@ -43,12 +49,11 @@ export default function WeeklyProgress({ treinos, metaSemanal }: Props) {
         </div>
 
         <div className="flex -space-x-2">
-          {/* Visualização de Check-ins Rápidos */}
           {Array.from({ length: metaSemanal }).map((_, i) => (
             <div
               key={i}
               className={`w-10 h-10 rounded-full border-4 border-[#020617] flex items-center justify-center transition-all ${i < concluidos
-                ? 'bg-orange-500 text-white scale-110 z-10'
+                ? 'bg-orange-500 text-white scale-110 z-10 shadow-[0_0_15px_rgba(249,115,22,0.4)]'
                 : 'bg-slate-800 text-slate-600'
                 }`}
             >
@@ -58,7 +63,6 @@ export default function WeeklyProgress({ treinos, metaSemanal }: Props) {
         </div>
       </div>
 
-      {/* Barra de Progresso */}
       <div className="space-y-3">
         <div className="h-4 w-full bg-slate-800/50 rounded-full overflow-hidden p-1 border border-white/5">
           <div
@@ -69,7 +73,7 @@ export default function WeeklyProgress({ treinos, metaSemanal }: Props) {
 
         <div className="flex justify-between items-center px-1">
           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
-            {porcentagem === 100 ? "META ATINGIDA! 🔥" : "Mantenha a chama acesa"}
+            {porcentagem === 100 ? "META ATINGIDA! 🔥" : "Semana iniciada • Domingo"}
           </p>
           <p className="text-[9px] font-black text-white uppercase tracking-widest">
             {Math.round(porcentagem)}%
