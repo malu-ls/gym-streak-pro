@@ -2,42 +2,54 @@ import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 import { NextResponse } from 'next/server';
 
-// Configuração centralizada
-webpush.setVapidDetails(
-  'mailto:contato@gymignite.app',
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+// 1. Força a rota a ser dinâmica para evitar erro de 'supabaseKey is required' no build da Vercel
+export const dynamic = 'force-dynamic';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Inicialização segura do WebPush
+const publicVapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
+const privateVapid = process.env.VAPID_PRIVATE_KEY || '';
+
+if (publicVapid && privateVapid) {
+  webpush.setVapidDetails(
+    'mailto:contato@gymignite.app',
+    publicVapid,
+    privateVapid
+  );
+}
+
+// 2. Inicialização segura do Cliente Admin
+// Durante o build, essas variáveis podem estar vazias. O 'force-dynamic' impede que o build quebre aqui.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+const supabaseAdmin = (supabaseUrl && supabaseServiceKey)
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
 
 export async function GET(req: Request) {
-  // 1. Segurança: Proteção da Rota
+  // Verificação de inicialização
+  if (!supabaseAdmin) {
+    return NextResponse.json({ error: 'Ambiente não configurado corretamente.' }, { status: 500 });
+  }
+
+  // 3. Segurança: Proteção da Rota via Bearer Token
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Data local do servidor (YYYY-MM-DD)
   const hoje = new Date().toLocaleDateString('en-CA');
 
   try {
-    // 2. BUSCA OTIMIZADA:
-    // Pegamos assinantes e, na mesma query, verificamos se há treino hoje usando Left Join
-    // Nota: Esta query assume que você tem uma relação no banco.
-    // Caso contrário, faremos a filtragem manual de forma eficiente.
+    // 4. Busca todos os assinantes de notificação
     const { data: inscritos, error: errSub } = await supabaseAdmin
       .from('push_subscriptions')
-      .select(`
-        user_id,
-        subscription_json
-      `);
+      .select('user_id, subscription_json');
 
     if (errSub || !inscritos) throw errSub;
 
-    // 3. Pegar IDs de quem JÁ TREINOU hoje para filtrar
+    // 5. Busca IDs de quem já treinou hoje de forma otimizada (Batch)
     const { data: treinosHoje } = await supabaseAdmin
       .from('treinos')
       .select('user_id')
@@ -45,14 +57,15 @@ export async function GET(req: Request) {
 
     const idsQueJaTreinaram = new Set(treinosHoje?.map(t => t.user_id) || []);
 
-    // 4. Filtrar apenas quem ainda não treinou
+    // 6. Filtra apenas os faltosos (quem está inscrito mas não treinou hoje)
     const faltosos = inscritos.filter(ins => !idsQueJaTreinaram.has(ins.user_id));
 
+    // 7. Disparo em massa (Paralelizado)
     const promessasDeEnvio = faltosos.map(async (assinante) => {
       const payload = JSON.stringify({
         title: 'A chama está apagando! 🔥',
         body: 'Você ainda não registrou seu treino de hoje. Mantenha sua meta viva!',
-        url: '/' // O sw.js tratará o ?action=open_mood_selector
+        url: '/' // O sw.js tratará o ?action=open_mood_selector automaticamente
       });
 
       try {
@@ -61,7 +74,7 @@ export async function GET(req: Request) {
           payload
         );
       } catch (error: any) {
-        // 5. LIMPEZA: Se o token expirou (410 Gone ou 404), removemos do banco
+        // Limpeza de tokens inválidos (410: Gone / 404: Not Found)
         if (error.statusCode === 410 || error.statusCode === 404) {
           await supabaseAdmin
             .from('push_subscriptions')
@@ -78,7 +91,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       success: true,
       total_assinantes: inscritos.length,
-      faltosos_notificados: enviadosComSucesso
+      faltosos_notificados: enviadosComSucesso,
+      data: hoje
     });
 
   } catch (error: any) {
