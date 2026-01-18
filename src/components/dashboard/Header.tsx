@@ -38,7 +38,9 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
 
     try {
       // Usamos ready para garantir que o SW já está lá antes de perguntar da inscrição
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await navigator.serviceWorker.register('/notifications-sw.js', {
+        scope: '/',
+      });
       const subscription = await registration.pushManager.getSubscription();
       setIsInscrito(!!subscription);
     } catch (error) {

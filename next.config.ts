@@ -3,10 +3,10 @@ import type { NextConfig } from 'next';
 
 const withPWA = require('next-pwa')({
   dest: 'public',
-  register: false, // MUDAMOS PARA FALSE
+  register: false, // Nós vamos registrar manualmente
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development',
-  sw: 'sw.js', // Nome do seu arquivo na pasta public
+  sw: 'notifications-sw.js', // Nome que acabamos de dar
 });
 
 const nextConfig: NextConfig = {
