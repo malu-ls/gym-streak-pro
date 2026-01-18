@@ -34,9 +34,15 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
 
   const checkSubscription = useCallback(async () => {
     if (!('serviceWorker' in navigator)) return;
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    setIsInscrito(!!subscription);
+    try {
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      if (registration) {
+        const subscription = await registration.pushManager.getSubscription();
+        setIsInscrito(!!subscription);
+      }
+    } catch (error) {
+      console.error("Erro ao checar inscrição:", error);
+    }
   }, []);
 
   useEffect(() => {
@@ -51,28 +57,26 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         alert('Autorize as notificações para receber os lembretes.');
-        setIsCarregandoPush(false);
         return;
       }
 
-      // 1. REGISTRO FORÇADO (Cache Busting)
-      // Adicionamos um timestamp para obrigar o navegador a baixar o arquivo novo
-      const swUrl = `/gym-ignite-push.js?v=${Date.now()}`;
+      // IMPORTANTE: Apontamos para a ROTA de API que você criou em src/app/gym-ignite-push.js/route.ts
+      // O Next.js servirá seu arquivo JS puro por aqui, enganando o plugin PWA.
+      const swUrl = '/gym-ignite-push.js';
+
       const registration = await navigator.serviceWorker.register(swUrl, {
         scope: '/',
       });
 
-      // 2. FORÇAR ATUALIZAÇÃO IMEDIATA
-      if (registration.active) {
-        registration.update();
-      }
+      // Forçamos o navegador a checar se o conteúdo do arquivo mudou na rota
+      await registration.update();
 
-      await navigator.serviceWorker.ready;
+      const activeReg = await navigator.serviceWorker.ready;
 
       const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!publicVapidKey) throw new Error("VAPID key missing");
 
-      const subscription = await registration.pushManager.subscribe({
+      const subscription = await activeReg.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
       });
@@ -88,8 +92,8 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
         alert('A chama agora te avisa! 🔥');
       }
     } catch (error: any) {
-      console.error('Erro:', error);
-      alert('Falha ao ativar. Tente abrir o app pelo ícone da tela inicial.');
+      console.error('Erro no Push:', error);
+      alert('Falha ao ativar. Se você estiver no Android, certifique-se de ter instalado o App na tela inicial.');
     } finally {
       setIsCarregandoPush(false);
     }
