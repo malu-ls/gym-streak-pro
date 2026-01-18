@@ -1,8 +1,8 @@
 "use client";
 
-import { Flame, Bell, BellOff, BellRing, User, LogOut, Loader2 } from 'lucide-react';
+import { Bell, BellRing, User, LogOut, Loader2, Flame } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface HeaderProps {
@@ -10,7 +10,6 @@ interface HeaderProps {
   userName: string;
 }
 
-// Função utilitária movida para fora para evitar recriação e erros de escopo
 const urlBase64ToUint8Array = (base64String: string) => {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -33,64 +32,69 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  useEffect(() => {
-    async function checkSubscription() {
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        try {
-          const registration = await navigator.serviceWorker.ready;
-          const subscription = await registration.pushManager.getSubscription();
-          setIsInscrito(!!subscription);
-        } catch (error) {
-          console.error("Erro ao verificar inscrição:", error);
-        }
-      }
+  // Memoizando a função de verificação para evitar re-execuções desnecessárias
+  const checkSubscription = useCallback(async () => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    try {
+      // Usamos ready para garantir que o SW já está lá antes de perguntar da inscrição
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      setIsInscrito(!!subscription);
+    } catch (error) {
+      console.warn("Service Worker não está pronto:", error);
     }
-    checkSubscription();
   }, []);
+
+  useEffect(() => {
+    checkSubscription();
+  }, [checkSubscription]);
 
   const handlePushSubscription = async () => {
     if (isCarregandoPush) return;
     setIsCarregandoPush(true);
 
     try {
+      // 1. Solicita permissão
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        alert('Permissão de notificação negada.');
-        setIsInscrito(false);
+        alert('Para receber alertas de treino, autorize as notificações no seu navegador.');
         setIsCarregandoPush(false);
         return;
       }
 
-      // Garante que o SW está registrado e ativo
-      const registration = await navigator.serviceWorker.register('/sw.js');
+      // 2. Registro EXPLÍCITO com escopo (Vital para Android/iOS)
+      const registration = await navigator.serviceWorker.register('/sw.js', {
+        scope: '/' // Garante que o SW controle todas as rotas
+      });
+
+      // 3. Aguarda o SW estar ativo antes de prosseguir
       await navigator.serviceWorker.ready;
 
       const publicVapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!publicVapidKey) {
-        throw new Error("VAPID public key não encontrada");
-      }
+      if (!publicVapidKey) throw new Error("Chave pública VAPID ausente.");
 
+      // 4. Inscrição no Push Manager
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicVapidKey)
       });
 
+      // 5. Salva no banco via API
       const res = await fetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subscription),
       });
 
-      if (res.ok) {
-        setIsInscrito(true);
-        alert('A chama agora te avisa! 🔥');
-      } else {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Erro na resposta do servidor");
-      }
+      if (!res.ok) throw new Error("Falha ao salvar inscrição no servidor.");
+
+      setIsInscrito(true);
+      alert('A chama agora te avisa! 🔥');
+
     } catch (error: any) {
-      console.error('Erro ao inscrever para push:', error);
-      alert(`Erro: ${error.message || 'Verifique se o app está instalado e tente novamente.'}`);
+      console.error('Erro no Push:', error);
+      alert('Não foi possível ativar as notificações. Verifique se o app está instalado na sua tela de início.');
     } finally {
       setIsCarregandoPush(false);
     }
@@ -111,6 +115,7 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
 
   return (
     <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-900/40 p-8 rounded-[40px] border border-white/5 backdrop-blur-xl shadow-2xl relative overflow-hidden text-white">
+      {/* Elementos decorativos e conteúdo do Header permanecem iguais */}
       <div className="absolute -top-24 -left-24 w-48 h-48 bg-orange-500/10 blur-[100px] pointer-events-none" />
 
       <div className="relative z-10">
@@ -135,15 +140,13 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
         <button
           onClick={handlePushSubscription}
           disabled={isCarregandoPush}
-          className={`p-4 rounded-3xl border transition-all active:scale-90 group flex items-center gap-2 ${isInscrito
-            ? 'bg-orange-500/10 border-orange-500/20'
-            : 'bg-slate-800/50 border-white/5 hover:bg-slate-800'
+          className={`p-4 rounded-3xl border transition-all active:scale-95 group flex items-center gap-2 ${isInscrito ? 'bg-orange-500/10 border-orange-500/20' : 'bg-slate-800/50 border-white/5 hover:bg-slate-800'
             }`}
         >
           {isCarregandoPush ? (
             <Loader2 className="w-5 h-5 text-orange-500 animate-spin" />
           ) : isInscrito ? (
-            <BellRing className="w-5 h-5 text-orange-500 animate-pulse" />
+            <BellRing className="w-5 h-5 text-orange-500" />
           ) : (
             <Bell className="w-5 h-5 text-slate-400 group-hover:text-orange-500" />
           )}
@@ -152,7 +155,7 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
         <button
           onClick={handleLogout}
           disabled={isSaindo}
-          className="p-4 bg-slate-800/50 hover:bg-red-500/10 rounded-3xl border border-white/5 hover:border-red-500/20 transition-all active:scale-90 group"
+          className="p-4 bg-slate-800/50 hover:bg-red-500/10 rounded-3xl border border-white/5 hover:border-red-500/20 transition-all active:scale-95 group"
         >
           {isSaindo ? (
             <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
