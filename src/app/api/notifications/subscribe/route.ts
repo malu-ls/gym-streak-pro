@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
-  // CORREÇÃO: cookies() agora é uma Promise no Next.js 15
+  // ESSA LINHA É A CHAVE:
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
@@ -38,6 +38,7 @@ export async function POST(req: Request) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    console.error("Erro no servidor:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
