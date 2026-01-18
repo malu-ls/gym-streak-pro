@@ -33,7 +33,7 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
   );
 
   const checkSubscription = useCallback(async () => {
-    if (!('serviceWorker' in navigator)) return;
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
     try {
       const registration = await navigator.serviceWorker.getRegistration('/');
       if (registration) {
@@ -60,15 +60,15 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
         return;
       }
 
-      // IMPORTANTE: Apontamos para a ROTA de API que você criou em src/app/gym-ignite-push.js/route.ts
-      // O Next.js servirá seu arquivo JS puro por aqui, enganando o plugin PWA.
-      const swUrl = '/gym-ignite-push.js';
+      // NOVO CAMINHO: Aponta para a pasta que criamos (src/app/push/route.ts)
+      // Isso ignora o arquivo estático que o plugin PWA tenta subscrever.
+      const swUrl = '/push';
 
       const registration = await navigator.serviceWorker.register(swUrl, {
         scope: '/',
       });
 
-      // Forçamos o navegador a checar se o conteúdo do arquivo mudou na rota
+      // Força a atualização do Service Worker para garantir que pegou o código novo
       await registration.update();
 
       const activeReg = await navigator.serviceWorker.ready;
@@ -93,7 +93,7 @@ export default function Header({ treinosCount, userName }: HeaderProps) {
       }
     } catch (error: any) {
       console.error('Erro no Push:', error);
-      alert('Falha ao ativar. Se você estiver no Android, certifique-se de ter instalado o App na tela inicial.');
+      alert('Falha ao ativar. Tente novamente ou limpe o cache do site.');
     } finally {
       setIsCarregandoPush(false);
     }

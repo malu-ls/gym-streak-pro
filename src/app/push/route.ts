@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 export async function GET() {
-  // Busca o arquivo que está na pasta src/app/ (conforme sua imagem image_7d2ec7.png)
+  // Ajustamos o caminho para pegar o arquivo na raiz da pasta app
   const filePath = path.join(process.cwd(), 'src', 'app', 'gym-ignite-push.js');
 
   try {
