@@ -2,23 +2,20 @@
 /* eslint-disable no-restricted-globals */
 
 self.addEventListener('push', function (event) {
-  let data = {
-    title: 'GYM IGNITE',
-    body: 'Bora treinar? A chama não pode apagar! 🔥',
-    url: '/'
-  };
-
-  // Se o servidor enviou dados, nós os usamos
+  // 1. Tenta ler o JSON enviado pelo Insomnia/Cron
+  let data = {};
   if (event.data) {
     try {
       data = event.data.json();
     } catch (e) {
-      console.warn('Payload não era JSON, usando padrão.');
+      data = { title: 'Gym Ignite', body: event.data.text() };
     }
   }
 
+  // 2. Define valores padrão caso o payload venha vazio
+  const title = data.title || 'Gym Ignite 🔥';
   const options = {
-    body: data.body,
+    body: data.body || 'A chama não pode apagar! Registre seu treino.',
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     vibrate: [200, 100, 200],
@@ -29,9 +26,9 @@ self.addEventListener('push', function (event) {
     }
   };
 
-  // OBRIGATÓRIO: O Android exige que você retorne a promessa da notificação
+  // 3. OBRIGATÓRIO PARA ANDROID: event.waitUntil + showNotification
   event.waitUntil(
-    self.registration.showNotification(data.title, options)
+    self.registration.showNotification(title, options)
   );
 });
 
@@ -39,10 +36,12 @@ self.addEventListener('notificationclick', function (event) {
   event.notification.close();
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      if (clientList.length > 0) {
-        return clientList[0].focus();
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
       }
-      return clients.openWindow(event.notification.data.url);
+      if (clients.openWindow) return clients.openWindow(event.notification.data.url);
     })
   );
 });
