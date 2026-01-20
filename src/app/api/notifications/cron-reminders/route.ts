@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
     if (errTreinos) throw errTreinos;
 
-    const idsQueJaTreinaram = new Set(treinosHoje?.map(t => t.user_id) || []);
+    const idsQueJaTreinaram = new Set(treinosHoje?.map(t => t.usuario_id) || []);
 
     // 3. Filtra: Inscritos que NÃO estão na lista de quem treinou hoje
     const faltosos = inscritos.filter(ins => !idsQueJaTreinaram.has(ins.user_id));
