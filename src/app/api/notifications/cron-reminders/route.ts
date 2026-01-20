@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     // 2. Busca treinos realizados especificamente na data "hoje" (local)
     const { data: treinosHoje, error: errTreinos } = await supabaseAdmin
       .from('treinos')
-      .select('user_id')
+      .select('usuario_id')
       .eq('data', hoje);
 
     if (errTreinos) throw errTreinos;
