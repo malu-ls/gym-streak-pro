@@ -1,3 +1,4 @@
+// src/app/api/notifications/cron-reminders/route.ts
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 import { NextResponse } from 'next/server';
@@ -32,29 +33,39 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Data em formato ISO YYYY-MM-DD para o banco
-  const hoje = new Date().toISOString().split('T')[0];
+  // CORREÇÃO DE TIMEZONE: Garante que "hoje" seja a data de Brasília (YYYY-MM-DD)
+  // Independente de onde o servidor da Vercel estiver rodando.
+  const hoje = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date()).split('/').reverse().join('-');
 
   try {
-    // 1. Busca assinantes
+    // 1. Busca todos os usuários inscritos para receber Push
     const { data: inscritos, error: errSub } = await supabaseAdmin
       .from('push_subscriptions')
       .select('user_id, subscription_json');
 
     if (errSub || !inscritos) throw errSub;
 
-    // 2. Busca treinos de hoje
-    const { data: treinosHoje } = await supabaseAdmin
+    // 2. Busca treinos realizados especificamente na data "hoje" (local)
+    const { data: treinosHoje, error: errTreinos } = await supabaseAdmin
       .from('treinos')
       .select('user_id')
       .eq('data', hoje);
 
+    if (errTreinos) throw errTreinos;
+
     const idsQueJaTreinaram = new Set(treinosHoje?.map(t => t.user_id) || []);
 
-    // 3. Filtra quem não treinou
+    // 3. Filtra: Inscritos que NÃO estão na lista de quem treinou hoje
     const faltosos = inscritos.filter(ins => !idsQueJaTreinaram.has(ins.user_id));
 
-    // 4. Disparo com configurações de prioridade mobile
+    console.log(`[Cron] Data: ${hoje} | Inscritos: ${inscritos.length} | Já treinaram: ${idsQueJaTreinaram.size} | Faltosos: ${faltosos.length}`);
+
+    // 4. Disparo das notificações
     const promessasDeEnvio = faltosos.map(async (assinante) => {
       const payload = JSON.stringify({
         title: 'A chama está apagando! 🔥',
@@ -67,15 +78,15 @@ export async function GET(req: Request) {
           assinante.subscription_json as any,
           payload,
           {
-            TTL: 86400, // Mantém a tentativa de entrega por 24h
-            urgency: 'high', // Prioridade alta para furar o modo "Doze" do Android
+            TTL: 86400,
+            urgency: 'high',
             headers: {
               'Content-Type': 'application/json'
             }
           }
         );
       } catch (error: any) {
-        // Remove assinaturas inválidas ou expiradas
+        // Limpeza de banco: Remove tokens que o Google/Apple dizem que não existem mais
         if (error.statusCode === 410 || error.statusCode === 404) {
           await supabaseAdmin
             .from('push_subscriptions')
@@ -92,8 +103,9 @@ export async function GET(req: Request) {
     return NextResponse.json({
       success: true,
       data_processamento: hoje,
+      total_inscritos: inscritos.length,
       faltosos_encontrados: faltosos.length,
-      notificacoes_entregues: enviadosComSucesso
+      notificacoes_enviadas: enviadosComSucesso
     });
 
   } catch (error: any) {
