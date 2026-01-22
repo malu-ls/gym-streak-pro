@@ -1,6 +1,6 @@
 {
-  "name": "Ignite Gym Tracker",
-  "short_name": "Ignite",
+  "name": "Gym Ignite",
+  "short_name": "Gym Ignite",
   "description": "Fuel your evolution",
   "start_url": "/",
   "display": "standalone",
@@ -10,12 +10,14 @@
     {
       "src": "/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

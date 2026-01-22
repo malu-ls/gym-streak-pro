@@ -11,7 +11,7 @@ import MonthlyCalendar from '@/components/MonthlyCalendar';
 import Header from '@/components/dashboard/Header';
 import GoalEditor from '@/components/dashboard/GoalEditor';
 import InstagramCard from '@/components/social/InstagramCard';
-import BadgeGrid from '@/components/achievements/BadgeGrid';
+import WaterTracker from '@/components/dashboard/WaterTracker'; // Novo Componente
 import WeightTracker from '@/components/body/WeightTracker';
 import WeeklyProgress from '@/components/dashboard/WeeklyProgress';
 import CyclePredictor from '@/components/dashboard/CyclePredictor';
@@ -28,7 +28,6 @@ interface Treino {
 export default function GymTracker() {
   const [activeTab, setActiveTab] = useState<'frequencia' | 'peso'>('frequencia');
   const [treinos, setTreinos] = useState<Treino[]>([]);
-  const [feriados, setFeriados] = useState<{ date: string }[]>([]);
   const [metaSemanal, setMetaSemanal] = useState(4);
   const [isCarregado, setIsCarregado] = useState(false);
   const [isExportando, setIsExportando] = useState(false);
@@ -37,12 +36,14 @@ export default function GymTracker() {
   const [isEditingMetas, setIsEditingMetas] = useState(false);
 
   const [userData, setUserData] = useState({
+    id: '',
     nome: 'Atleta',
     createdAt: '',
     sexo: '',
     ultimoCiclo: '',
     duracaoCiclo: 28,
-    duracaoPeriodo: 5
+    duracaoPeriodo: 5,
+    pesoAtual: 0 // Adicionado para o WaterTracker
   });
 
   const supabase = useMemo(() => createBrowserClient(
@@ -54,31 +55,40 @@ export default function GymTracker() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const [perfilRes, treinosRes] = await Promise.all([
+        const userId = session.user.id;
+
+        const [perfilRes, treinosRes, pesoRes] = await Promise.all([
           supabase.from('perfis')
             .select('nome, meta_semanal, created_at, sexo, ultimo_ciclo, duracao_ciclo, duracao_periodo')
-            .eq('id', session.user.id)
+            .eq('id', userId)
             .single(),
-          fetch('/api/treinos').then(r => r.json())
+          fetch('/api/treinos').then(r => r.json()),
+          // Busca o peso mais recente para o cálculo de água
+          supabase.from('historico_peso')
+            .select('peso')
+            .eq('usuario_id', userId)
+            .order('data', { ascending: false })
+            .limit(1)
+            .single()
         ]);
 
         if (perfilRes.data) {
           const p = perfilRes.data;
-          setUserData({
+          setUserData(prev => ({
+            ...prev,
+            id: userId,
             nome: p.nome || 'Atleta',
             createdAt: p.created_at,
             sexo: p.sexo,
             ultimoCiclo: p.ultimo_ciclo,
             duracaoCiclo: p.duracao_ciclo || 28,
-            duracaoPeriodo: p.duracao_periodo || 5
-          });
+            duracaoPeriodo: p.duracao_periodo || 5,
+            pesoAtual: pesoRes.data?.peso || 0
+          }));
           setMetaSemanal(p.meta_semanal || 4);
         }
         if (Array.isArray(treinosRes)) setTreinos(treinosRes);
       }
-      const resFeriados = await fetch(`https://brasilapi.com.br/api/feriados/v1/2026`);
-      const feriadosData = await resFeriados.json();
-      setFeriados(Array.isArray(feriadosData) ? feriadosData : []);
     } catch (e) {
       console.error("Erro na sincronização:", e);
     } finally {
@@ -88,18 +98,14 @@ export default function GymTracker() {
 
   useEffect(() => { carregarDados(); }, [carregarDados]);
 
-  // --- LÓGICA DE NOTIFICAÇÃO (DEEP LINK) ---
+  // Deep Link para notificações
   useEffect(() => {
     if (!isCarregado) return;
-
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'open_mood_selector') {
       const hoje = new Date().toLocaleDateString('en-CA');
-      const jaTreinou = treinos.some(t => t.data === hoje);
-
-      if (!jaTreinou) {
+      if (!treinos.some(t => t.data === hoje)) {
         setShowMoodSelector({ data: hoje });
-        // Limpa a URL para evitar re-abertura indesejada
         window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
@@ -107,15 +113,8 @@ export default function GymTracker() {
 
   const handleUpdateMeta = async (novaMeta: number) => {
     setMetaSemanal(novaMeta);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        await supabase.from('perfis')
-          .update({ meta_semanal: novaMeta })
-          .eq('id', session.user.id);
-      }
-    } catch (e) {
-      console.error("Erro ao salvar meta:", e);
+    if (userData.id) {
+      await supabase.from('perfis').update({ meta_semanal: novaMeta }).eq('id', userData.id);
     }
   };
 
@@ -134,39 +133,29 @@ export default function GymTracker() {
 
     if (isDelete) {
       setTreinos(prev => prev.filter(t => t.data !== dataIso));
-      try {
-        await fetch('/api/treinos', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: dataIso })
-        });
-      } catch (e) { setTreinos(treinosAnteriores); }
+      await fetch('/api/treinos', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: dataIso })
+      });
     } else {
       const moodFinal = moodSelecionado || '🏆';
       setTreinos(prev => [...prev, { id: 'temp', data: dataIso, hora: new Date().getHours(), mood: moodFinal }]);
       confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
-
-      try {
-        await fetch('/api/treinos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: dataIso, mood: moodFinal, hora: new Date().getHours() })
-        });
-      } catch (e) { setTreinos(treinosAnteriores); }
+      await fetch('/api/treinos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: dataIso, mood: moodFinal, hora: new Date().getHours() })
+      });
     }
     carregarDados();
   };
 
   const handleUpdateCycle = async (novaData: string, novaDuracao: number, novaDuracaoPeriodo: number) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session) {
+    if (userData.id) {
       const { error } = await supabase.from('perfis')
-        .update({
-          ultimo_ciclo: novaData,
-          duracao_ciclo: novaDuracao,
-          duracao_periodo: novaDuracaoPeriodo
-        })
-        .eq('id', session.user.id);
+        .update({ ultimo_ciclo: novaData, duracao_ciclo: novaDuracao, duracao_periodo: novaDuracaoPeriodo })
+        .eq('id', userData.id);
 
       if (!error) {
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#ef4444', '#f97316', '#ffffff'] });
@@ -177,33 +166,20 @@ export default function GymTracker() {
 
   const treinosDaSemana = useMemo(() => {
     const hoje = new Date();
-    const diaDaSemana = hoje.getDay(); // 0 = Domingo
     const domingo = new Date(hoje);
-    domingo.setDate(hoje.getDate() - diaDaSemana);
+    domingo.setDate(hoje.getDate() - hoje.getDay());
     domingo.setHours(0, 0, 0, 0);
-
-    return treinos.filter(t => {
-      const dataTreino = new Date(t.data + "T00:00:00");
-      return dataTreino >= domingo;
-    });
+    return treinos.filter(t => new Date(t.data + "T00:00:00") >= domingo);
   }, [treinos]);
 
   const stats = useMemo(() => {
-    const hojeLocal = new Date().toLocaleDateString('en-CA');
     const prefixoMes = `${dataExibida.getFullYear()}-${(dataExibida.getMonth() + 1).toString().padStart(2, '0')}`;
     const treinosNoMes = treinos.filter(t => t.data.startsWith(prefixoMes)).length;
-
     return {
       treinosNoMes,
       nomeMes: dataExibida.toLocaleDateString('pt-BR', { month: 'long' }),
       anoExibido: dataExibida.getFullYear(),
-      bateuMetaMensal: treinosNoMes >= (metaSemanal * 4),
       metaMensal: metaSemanal * 4,
-      treinouHoje: treinos.some(t => t.data === hojeLocal),
-      rank: treinos.length <= 10 ? { nome: "Iniciante", emoji: "🐣" } :
-        treinos.length <= 30 ? { nome: "Focado", emoji: "🔥" } :
-          treinos.length <= 80 ? { nome: "Constante", emoji: "🏋️‍♂️" } :
-            { nome: "Gladiador", emoji: "🛡️" }
     };
   }, [treinos, metaSemanal, dataExibida]);
 
@@ -231,11 +207,7 @@ export default function GymTracker() {
         link.href = dataUrl;
         link.click();
       }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsExportando(false);
-    }
+    } catch (e) { console.error(e); } finally { setIsExportando(false); }
   };
 
   if (!isCarregado) return (
@@ -254,10 +226,13 @@ export default function GymTracker() {
         />
       )}
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto space-y-6">
         {activeTab === 'frequencia' ? (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <Header treinosCount={treinos.length} userName={userData.nome} />
+
+            {/* Inserção do WaterTracker na Frequência */}
+            <WaterTracker userId={userData.id} />
 
             {userData.sexo === 'feminino' && (
               userData.ultimoCiclo ? (
@@ -281,10 +256,7 @@ export default function GymTracker() {
             />
 
             <WeeklyProgress treinos={treinos} metaSemanal={metaSemanal} />
-
             <MonthlyCalendar treinos={treinos} onToggleTreino={handleToggleTreino} onMonthChange={setDataExibida} />
-
-            <BadgeGrid treinos={treinos} feriados={feriados} mesReferencia={dataExibida} metaSemanal={metaSemanal} />
 
             <button onClick={compartilharFrequencia} disabled={isExportando} className="w-full bg-gradient-to-br from-orange-500 to-orange-700 font-black py-6 rounded-[32px] flex items-center justify-center gap-3 uppercase text-xs tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50">
               {isExportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
@@ -292,7 +264,7 @@ export default function GymTracker() {
             </button>
           </div>
         ) : (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <WeightTracker
               ultimoCiclo={userData.ultimoCiclo}
               duracaoCiclo={userData.duracaoCiclo}
@@ -311,8 +283,12 @@ export default function GymTracker() {
         </button>
       </nav>
 
+      {/* Card oculto para exportação */}
       <InstagramCard
-        {...stats}
+        bateuMetaMensal={false} rank={{
+          nome: '',
+          emoji: ''
+        }} treinouHoje={false} {...stats}
         metaMensalEstimada={stats.metaMensal}
         treinosCount={treinos.length}
         metaAnual={metaAnualDinamica}
@@ -320,8 +296,7 @@ export default function GymTracker() {
         ano={stats.anoExibido}
         mesNome={stats.nomeMes}
         metaSemanal={metaSemanal}
-        concluidosSemana={treinosDaSemana.length}
-      />
+        concluidosSemana={treinosDaSemana.length} />
     </main>
   );
 }
