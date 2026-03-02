@@ -1,32 +1,45 @@
 "use client";
 
-import { Flame, Activity, Trophy } from 'lucide-react';
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 
-interface Props {
+interface InstagramCardProps {
+  treinosNoMes: number;
+  metaMensalEstimada: number;
   treinosCount: number;
   metaAnual: number;
   consistencia: number;
-  treinosNoMes: number;
-  metaMensalEstimada: number;
-  bateuMetaMensal: boolean;
-  rank: { nome: string; emoji: string };
-  treinouHoje: boolean;
-  mesNome: string;
   ano: number;
-  concluidosSemana: number;
+  mesNome: string;
   metaSemanal: number;
+  concluidosSemana: number;
+  userName: string;
+  bateuMetaMensal: boolean;
+  rank: {
+    nome: string;
+    emoji: string;
+  };
 }
 
-export default function InstagramCard(props: Props) {
-  // Mantemos o design intacto, apenas garantindo que a porcentagem
-  // respeite o valor que o componente pai (GymTracker) já calculou como Domingo.
-  const porcentagemSemana = useMemo(() =>
-    Math.min(100, (props.concluidosSemana / props.metaSemanal) * 100)
-    , [props.concluidosSemana, props.metaSemanal]);
+export default function InstagramCard({
+  treinosNoMes,
+  ano,
+  mesNome,
+  metaSemanal,
+  concluidosSemana,
+  userName,
+  bateuMetaMensal,
+  rank
+}: InstagramCardProps) {
+
+  const { flames, progressoSemana } = useMemo(() => {
+    const flamesArray = Array.from({ length: metaSemanal }, (_, i) => i < concluidosSemana);
+    const porcentagem = Math.min(100, Math.round((concluidosSemana / metaSemanal) * 100)) || 0;
+    return { flames: flamesArray, progressoSemana: porcentagem };
+  }, [metaSemanal, concluidosSemana]);
 
   return (
-    <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', zIndex: -100 }}>
+    <div style={{ position: 'fixed', top: '-9999px', left: '-9999px', pointerEvents: 'none', zIndex: -100 }}>
+
       <div
         id="resumo-mensal-card"
         style={{
@@ -35,137 +48,113 @@ export default function InstagramCard(props: Props) {
           backgroundColor: '#020617',
           display: 'flex',
           flexDirection: 'column',
-          padding: '70px',
+          alignItems: 'center',
+          /* AJUSTE 1: Reduzimos o padding vertical para 100px (antes era 160px). Isso salva 120px de altura */
+          padding: '100px 80px',
           boxSizing: 'border-box',
           fontFamily: 'sans-serif',
+          margin: 0
         }}
       >
-        {/* HEADER COM MÊS E ANO DE REFERÊNCIA */}
-        <div style={{ marginBottom: '60px', textAlign: 'center' }}>
-          <h1 style={{ color: 'white', fontSize: '110px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', margin: 0, letterSpacing: '-5px' }}>
-            GYM <span style={{ color: '#f97316' }}>IGNITE</span>
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
-            <div style={{ height: '3px', width: '60px', backgroundColor: '#f97316', opacity: 0.5 }}></div>
-            <p style={{ color: '#64748b', fontSize: '32px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '10px', margin: 0 }}>
-              ESTATÍSTICAS {props.mesNome} {props.ano}
-            </p>
-            <div style={{ height: '3px', width: '60px', backgroundColor: '#f97316', opacity: 0.5 }}></div>
-          </div>
-        </div>
+        {/* --- HEADER --- */}
+        <h1 style={{ fontSize: '130px', fontWeight: '900', fontStyle: 'italic', margin: '0 0 20px 0', letterSpacing: '-5px', color: 'white', textAlign: 'center', lineHeight: 1 }}>
+          GYM <span style={{ color: '#f97316' }}>IGNITE</span>
+        </h1>
+        <p style={{ color: '#64748b', fontSize: '30px', fontWeight: '900', letterSpacing: '10px', textTransform: 'uppercase', margin: 0, textAlign: 'center' }}>
+          — {userName} • {mesNome} {ano} —
+        </p>
 
-        {/* STATUS EM LINHA ÚNICA */}
-        <div style={{ marginBottom: '50px' }}>
-          <div style={{
-            backgroundColor: props.treinouHoje ? 'rgba(249, 115, 22, 0.1)' : 'rgba(255,255,255,0.02)',
-            height: '150px',
-            borderRadius: '75px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 40px',
-            border: props.treinouHoje ? '4px solid #f97316' : '2px solid rgba(255,255,255,0.05)',
-            gap: '20px'
-          }}>
-            <span style={{
-              color: props.treinouHoje ? '#f97316' : '#475569',
-              fontSize: '55px',
-              fontWeight: '900',
-              fontStyle: 'italic',
-              textTransform: 'uppercase',
-              whiteSpace: 'nowrap'
-            }}>
-              {props.treinouHoje ? 'HOJE TÁ PAGO 🔥' : 'A CHAMA SEGUE ACESA 🛡️'}
-            </span>
-          </div>
-        </div>
-
-        {/* META DA SEMANA - Respeitando o reset de Domingo */}
+        {/* --- BADGE DE STATUS --- */}
+        {/* AJUSTE 2: marginTop reduzido para 80px */}
         <div style={{
-          backgroundColor: '#0f172a',
-          borderRadius: '70px',
-          padding: '50px',
-          marginBottom: '50px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          marginTop: '80px',
+          backgroundColor: bateuMetaMensal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+          border: `3px solid ${bateuMetaMensal ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+          borderRadius: '100px',
+          padding: '25px 60px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '24px',
+          boxShadow: `0 20px 40px ${bateuMetaMensal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)'}`
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-              <Activity color="#f97316" size={35} />
-              <span style={{ color: 'white', fontSize: '38px', fontWeight: '900', textTransform: 'uppercase', fontStyle: 'italic' }}>Meta da Semana</span>
+          <span style={{ color: bateuMetaMensal ? '#34d399' : '#60a5fa', fontSize: '36px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', margin: 0 }}>
+            {bateuMetaMensal ? 'META MENSAL BATIDA' : 'OBJETIVO EM ANDAMENTO'}
+          </span>
+          <span style={{ fontSize: '45px', margin: 0, lineHeight: 1 }}>{bateuMetaMensal ? '🏆' : '🛡️'}</span>
+        </div>
+
+        {/* --- CAIXA DE FREQUÊNCIA SEMANAL --- */}
+        {/* AJUSTE 3: marginTop de 80px e padding interno reduzido para 60px 60px */}
+        <div style={{
+          width: '100%',
+          backgroundColor: '#0f172a',
+          borderRadius: '56px',
+          padding: '60px 60px',
+          marginTop: '80px',
+          boxSizing: 'border-box',
+          border: '3px solid #1e293b'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+              </svg>
+              <span style={{ color: 'white', fontSize: '42px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', margin: 0 }}>
+                Frequência Semanal
+              </span>
             </div>
-            <span style={{ color: '#f97316', fontSize: '60px', fontWeight: '900' }}>
-              {props.concluidosSemana}/{props.metaSemanal}
+            <span style={{ color: '#f97316', fontSize: '75px', fontWeight: '900', fontStyle: 'italic', lineHeight: '1', margin: 0 }}>
+              {concluidosSemana}<span style={{ color: '#475569', fontSize: '55px' }}>/{metaSemanal}</span>
             </span>
           </div>
 
-          <div style={{ width: '100%', height: '40px', backgroundColor: '#1e293b', borderRadius: '20px', marginBottom: '40px', overflow: 'hidden' }}>
-            <div style={{
-              width: `${porcentagemSemana}%`,
-              height: '100%',
-              backgroundColor: '#f97316',
-              borderRadius: '20px',
-              transition: 'width 0.5s ease-in-out'
-            }}></div>
+          {/* Barra de Progresso */}
+          <div style={{ width: '100%', height: '26px', backgroundColor: '#1e293b', borderRadius: '13px', overflow: 'hidden', position: 'relative' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${progressoSemana}%`, backgroundColor: '#f97316', borderRadius: '13px' }} />
           </div>
 
-          <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-            {Array.from({ length: props.metaSemanal }).map((_, i) => (
+          {/* Grid de Foguinhos */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '50px', gap: '15px' }}>
+            {flames.map((isActive, i) => (
               <div key={i} style={{
-                width: '80px',
-                height: '80px',
-                borderRadius: '50%',
-                backgroundColor: i < props.concluidosSemana ? '#f97316' : '#1e293b',
+                flex: 1,
+                height: '100px',
+                backgroundColor: isActive ? 'rgba(249, 115, 22, 0.15)' : 'rgba(30, 41, 59, 0.4)',
+                borderRadius: '24px',
                 display: 'flex',
-                alignItems: 'center',
                 justifyContent: 'center',
+                alignItems: 'center',
+                border: isActive ? '3px solid rgba(249, 115, 22, 0.3)' : '3px solid transparent'
               }}>
-                <Flame
-                  size={40}
-                  color={i < props.concluidosSemana ? 'white' : '#334155'}
-                  fill={i < props.concluidosSemana ? 'white' : 'transparent'}
-                />
+                <span style={{ fontSize: '50px', margin: 0, opacity: isActive ? 1 : 0.2, filter: isActive ? 'drop-shadow(0 10px 15px rgba(249,115,22,0.4))' : 'none', lineHeight: 1 }}>
+                  🔥
+                </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* RANK E VOLUME MENSAL */}
-        <div style={{ display: 'flex', gap: '30px', marginBottom: '50px' }}>
-          <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '60px', padding: '40px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-            <p style={{ color: '#64748b', fontSize: '26px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Rank</p>
-            <div style={{ fontSize: '80px', marginBottom: '5px' }}>{props.rank.emoji}</div>
-            <p style={{ color: 'white', fontSize: '45px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', margin: 0 }}>{props.rank.nome}</p>
+        {/* --- GRID DUPLO: PATENTE & SESSÕES --- */}
+        {/* AJUSTE 4: marginTop de 60px (antes 100px) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', gap: '30px', marginTop: '60px', boxSizing: 'border-box' }}>
+
+          <div style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '56px', padding: '60px 30px', textAlign: 'center', border: '3px solid #1e293b', boxSizing: 'border-box' }}>
+            <p style={{ color: '#475569', fontSize: '24px', fontWeight: '900', margin: '0 0 40px 0', textTransform: 'uppercase', letterSpacing: '4px' }}>PATENTE ATUAL</p>
+            <span style={{ fontSize: '130px', display: 'block', marginBottom: '30px', lineHeight: 1 }}>{rank?.emoji || '🐣'}</span>
+            <p style={{ color: 'white', fontSize: '46px', fontWeight: '900', fontStyle: 'italic', margin: 0, textTransform: 'uppercase' }}>{rank?.nome || 'Iniciante'}</p>
           </div>
-          <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '60px', padding: '40px', border: '1px solid rgba(255,255,255,0.05)', textAlign: 'center' }}>
-            <p style={{ color: '#64748b', fontSize: '26px', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px' }}>Volume {props.mesNome}</p>
-            <div style={{ fontSize: '80px', marginBottom: '5px' }}>🗓️</div>
-            <p style={{ color: 'white', fontSize: '80px', fontWeight: '900', margin: 0 }}>{props.treinosNoMes}</p>
+
+          <div style={{ flex: 1, backgroundColor: '#0f172a', borderRadius: '56px', padding: '60px 30px', textAlign: 'center', border: '3px solid #1e293b', boxSizing: 'border-box' }}>
+            <p style={{ color: '#475569', fontSize: '24px', fontWeight: '900', margin: '0 0 40px 0', textTransform: 'uppercase', letterSpacing: '4px' }}>SESSÕES NO MÊS</p>
+            <span style={{ fontSize: '130px', display: 'block', marginBottom: '30px', lineHeight: 1 }}>💪</span>
+            <p style={{ color: 'white', fontSize: '90px', fontWeight: '900', fontStyle: 'italic', margin: 0, lineHeight: '0.8' }}>{treinosNoMes}</p>
           </div>
         </div>
 
-        {/* ACUMULADO DO ANO */}
-        <div style={{
-          marginTop: 'auto',
-          backgroundColor: '#f97316',
-          borderRadius: '50px',
-          padding: '45px 60px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <div>
-            <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '30px', fontWeight: '900', textTransform: 'uppercase', margin: 0 }}>Acumulado do Ano</p>
-            <p style={{ color: 'white', fontSize: '85px', fontWeight: '900', margin: 0 }}>{props.treinosCount} <span style={{ fontSize: '40px', opacity: 0.7 }}>/ {props.metaAnual} TREINOS</span></p>
-          </div>
-          <Trophy color="white" size={75} />
-        </div>
-
-        {/* FOOTER */}
-        <div style={{ marginTop: '50px', textAlign: 'center', paddingBottom: '20px' }}>
-          <p style={{ color: '#334155', fontSize: '32px', fontWeight: '900', fontStyle: 'italic', textTransform: 'uppercase', letterSpacing: '12px' }}>
-            GYMIGNITE.APP
-          </p>
-        </div>
+        {/* --- FOOTER MINIMALISTA --- */}
+        <p style={{ marginTop: 'auto', color: '#1e293b', fontSize: '34px', fontWeight: '900', letterSpacing: '16px', marginBottom: '40px', textAlign: 'center', width: '100%' }}>
+          GYMIGNITE.APP
+        </p>
       </div>
     </div>
   );

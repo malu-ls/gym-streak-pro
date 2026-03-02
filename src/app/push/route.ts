@@ -1,22 +1,34 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
+import { readFile } from 'fs/promises';
 import path from 'path';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
-  // Ajustamos o caminho para pegar o arquivo na raiz da pasta app
+  // Caminho absoluto para o arquivo do Service Worker
   const filePath = path.join(process.cwd(), 'src', 'app', 'gym-ignite-push.js');
 
   try {
-    const fileContent = fs.readFileSync(filePath, 'utf8');
+    // Uso de promessa para não bloquear a thread principal do Node.js
+    const fileContent = await readFile(filePath, 'utf8');
 
     return new NextResponse(fileContent, {
       headers: {
-        'Content-Type': 'application/javascript',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Content-Type': 'application/javascript; charset=utf-8',
+        // Headers rigorosos para Service Worker: nunca cachear o arquivo de registro
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Service-Worker-Allowed': '/',
       },
     });
-  } catch (error) {
-    console.error("Erro ao servir o Service Worker:", error);
-    return new NextResponse("Service Worker não encontrado", { status: 404 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Arquivo não encontrado';
+    console.error("[Service Worker Serve Error]:", message);
+
+    return new NextResponse(`/* Service Worker Error: ${message} */`, {
+      status: 404,
+      headers: { 'Content-Type': 'application/javascript' }
+    });
   }
 }

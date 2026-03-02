@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ShieldCheck, Loader2, ArrowRight, RefreshCcw } from 'lucide-react';
 import { createBrowserClient } from '@supabase/ssr';
 
@@ -16,10 +16,11 @@ export default function EmailVerification({ email, onVerified }: Props) {
   const [timer, setTimer] = useState(60);
   const [mensagem, setMensagem] = useState({ texto: '', erro: false });
 
-  const supabase = createBrowserClient(
+  // Memoização do cliente Supabase para estabilidade
+  const supabase = useMemo(() => createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  ), []);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -45,8 +46,9 @@ export default function EmailVerification({ email, onVerified }: Props) {
 
       if (error) throw error;
       onVerified();
-    } catch (err: any) {
-      setMensagem({ texto: 'Código inválido ou expirado.', erro: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Código inválido ou expirado.';
+      setMensagem({ texto: msg, erro: true });
     } finally {
       setIsVerificando(false);
     }
@@ -66,7 +68,7 @@ export default function EmailVerification({ email, onVerified }: Props) {
       if (error) throw error;
       setMensagem({ texto: 'Novo código enviado!', erro: false });
       setTimer(60);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMensagem({ texto: 'Erro ao reenviar. Tente mais tarde.', erro: true });
     } finally {
       setIsReenviando(false);
@@ -75,7 +77,7 @@ export default function EmailVerification({ email, onVerified }: Props) {
 
   return (
     <div className="flex flex-col items-center justify-center p-8 space-y-8 animate-in fade-in zoom-in duration-500">
-      {/* Ícone de Escudo */}
+      {/* Ícone de Escudo com Glow */}
       <div className="relative">
         <div className="absolute inset-0 bg-orange-500/20 blur-2xl rounded-full opacity-50" />
         <div className="relative p-5 bg-orange-500/10 rounded-[32px] border border-orange-500/20">
@@ -94,6 +96,7 @@ export default function EmailVerification({ email, onVerified }: Props) {
       <form onSubmit={handleVerify} className="w-full max-w-[340px] space-y-6">
         <div className="relative">
           <input
+            autoFocus
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"

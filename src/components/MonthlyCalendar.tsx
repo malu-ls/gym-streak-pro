@@ -9,7 +9,8 @@ import {
   startOfMonth,
   getDay,
   getDaysInMonth,
-  isSameDay
+  isSameDay,
+  parseISO
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -34,43 +35,43 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
   const [feriados, setFeriados] = useState<Feriado[]>([]);
   const [loadingFeriados, setLoadingFeriados] = useState(false);
 
+  // Sincroniza o mês atual com o componente pai (Dashboard)
   useEffect(() => {
-    let active = true;
+    onMonthChange?.(mesReferencia);
+  }, [mesReferencia, onMonthChange]);
+
+  // Busca feriados nacionais para marcar dias de "Inabalável"
+  useEffect(() => {
+    const controller = new AbortController();
     const buscarFeriados = async () => {
       const ano = mesReferencia.getFullYear();
       setLoadingFeriados(true);
       try {
-        const response = await fetch(`https://brasilapi.com.br/api/feriados/v1/${ano}`);
-        if (response.ok && active) {
+        const response = await fetch(
+          `https://brasilapi.com.br/api/feriados/v1/${ano}`,
+          { signal: controller.signal }
+        );
+        if (response.ok) {
           const data = await response.json();
           setFeriados(data);
         }
-      } catch (error) {
-        console.warn("Feriados indisponíveis");
+      } catch (error: unknown) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.warn("Feriados indisponíveis temporariamente");
+        }
       } finally {
-        if (active) setLoadingFeriados(false);
+        setLoadingFeriados(false);
       }
     };
+
     buscarFeriados();
-    return () => { active = false; };
+    return () => controller.abort();
   }, [mesReferencia.getFullYear()]);
 
-  const proximoMes = useCallback(() => {
-    setMesReferencia(prev => {
-      const novaData = addMonths(prev, 1);
-      if (onMonthChange) onMonthChange(novaData);
-      return novaData;
-    });
-  }, [onMonthChange]);
+  const proximoMes = useCallback(() => setMesReferencia(prev => addMonths(prev, 1)), []);
+  const anteriorMes = useCallback(() => setMesReferencia(prev => subMonths(prev, 1)), []);
 
-  const anteriorMes = useCallback(() => {
-    setMesReferencia(prev => {
-      const novaData = subMonths(prev, 1);
-      if (onMonthChange) onMonthChange(novaData);
-      return novaData;
-    });
-  }, [onMonthChange]);
-
+  // Construção do Grid com Memoização para evitar re-renders pesados
   const gridDias = useMemo(() => {
     const primeiroDiaSemana = getDay(startOfMonth(mesReferencia));
     const totalDias = getDaysInMonth(mesReferencia);
@@ -80,10 +81,13 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
     const feriadosMap = new Map(feriados.map(f => [f.date, f.name]));
 
     const dias = [];
+
+    // Dias vazios (offset do mês)
     for (let i = 0; i < primeiroDiaSemana; i++) {
       dias.push({ tipo: 'vazio', chave: `empty-${i}` });
     }
 
+    // Dias reais do mês
     for (let d = 1; d <= totalDias; d++) {
       const dataAtual = new Date(mesReferencia.getFullYear(), mesReferencia.getMonth(), d);
       const dataIso = format(dataAtual, 'yyyy-MM-dd');
@@ -105,36 +109,39 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
   const diasDaSemana = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
   return (
-    <div className="bg-slate-900/50 backdrop-blur-md p-6 rounded-[32px] border border-white/5 shadow-2xl">
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-orange-500/10 rounded-2xl border border-orange-500/20">
+    <div className="bg-slate-900/50 backdrop-blur-xl p-6 rounded-[40px] border border-white/5 shadow-2xl animate-in fade-in duration-700">
+
+      {/* Header Interativo */}
+      <div className="flex justify-between items-center mb-8 px-2">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-orange-500/10 rounded-2xl border border-orange-500/20">
             <CalendarIcon className="w-5 h-5 text-orange-500" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-white capitalize tracking-tight leading-none">
+            <h2 className="text-xl font-black text-white capitalize tracking-tighter leading-none">
               {format(mesReferencia, 'MMMM', { locale: ptBR })}
             </h2>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">
-              {format(mesReferencia, 'yyyy')}
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">
+              Calendário de Combate • {format(mesReferencia, 'yyyy')}
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-800/40 p-1.5 rounded-2xl border border-white/5">
-          {loadingFeriados && <Loader2 className="w-4 h-4 animate-spin text-orange-500/50 mr-1" />}
-          <button onClick={anteriorMes} className="p-2 hover:bg-slate-700 rounded-xl text-slate-400 transition-all active:scale-90">
-            <ChevronLeft className="w-5 h-5" />
+        <div className="flex items-center gap-2 bg-slate-950/50 p-2 rounded-2xl border border-white/5">
+          {loadingFeriados && <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-500/40" />}
+          <button onClick={anteriorMes} className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 transition-all active:scale-90">
+            <ChevronLeft size={20} />
           </button>
-          <button onClick={proximoMes} className="p-2 hover:bg-slate-700 rounded-xl text-slate-400 transition-all active:scale-90">
-            <ChevronRight className="w-5 h-5" />
+          <button onClick={proximoMes} className="p-2 hover:bg-slate-800 rounded-xl text-slate-400 transition-all active:scale-90">
+            <ChevronRight size={20} />
           </button>
         </div>
       </div>
 
+      {/* Grid do Calendário */}
       <div className="grid grid-cols-7 gap-2 md:gap-3">
         {diasDaSemana.map(dia => (
-          <div key={dia} className="text-center text-[9px] font-black uppercase text-slate-600 tracking-widest mb-2">
+          <div key={dia} className="text-center text-[9px] font-black uppercase text-slate-600 tracking-[0.2em] mb-3">
             {dia}
           </div>
         ))}
@@ -142,9 +149,8 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
         {gridDias.map((item) => {
           if (item.tipo === 'vazio') return <div key={item.chave} className="aspect-square" />;
 
-          // Lógica de Sentimento: Se for Troféu ou vazio, mostramos o número.
-          // Se for um emoji diferente, mostramos o emoji.
-          const temSentimentoReal = item.treinou && item.mood && item.mood !== '🏆';
+          // Lógica de exibição do emoji ou número
+          const exibirMood = item.treinou && item.mood && item.mood !== '🏆';
 
           return (
             <button
@@ -152,54 +158,53 @@ export default function MonthlyCalendar({ treinos, onToggleTreino, onMonthChange
               type="button"
               onClick={() => onToggleTreino(item.chave)}
               className={`
-                relative aspect-square flex flex-col items-center justify-center rounded-2xl border transition-all duration-150
-                hover:scale-105 active:scale-90 tap-highlight-transparent group
+                relative aspect-square flex flex-col items-center justify-center rounded-2xl border transition-all duration-300
+                active:scale-90 tap-highlight-transparent group
                 ${item.treinou
-                  ? 'bg-orange-500 border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.3)]'
+                  ? 'bg-orange-500 border-orange-400 shadow-[0_10px_25px_rgba(249,115,22,0.25)]'
                   : item.feriadoNome
                     ? 'bg-red-500/10 border-red-500/20'
-                    : 'bg-slate-800/40 border-white/5 hover:border-slate-700'}
-                ${item.isHoje && !item.treinou ? 'ring-2 ring-blue-500 ring-offset-4 ring-offset-slate-900' : ''}
+                    : 'bg-slate-800/40 border-white/5 hover:border-orange-500/30'}
+                ${item.isHoje && !item.treinou ? 'ring-2 ring-blue-500 ring-offset-4 ring-offset-[#020617]' : ''}
               `}
             >
-              {temSentimentoReal ? (
-                /* Exibe o emoji se a pessoa escolheu um sentimento diferente de Troféu */
-                <span className="text-xl md:text-2xl animate-in zoom-in duration-300">
+              {exibirMood ? (
+                <span className="text-2xl md:text-3xl animate-in zoom-in duration-500 drop-shadow-md">
                   {item.mood}
                 </span>
               ) : (
-                /* Exibe o número original do dia */
                 <span className={`text-xs md:text-sm font-black transition-colors
-                  ${item.treinou ? 'text-white' : item.feriadoNome ? 'text-red-400' : 'text-slate-400'}
+                  ${item.treinou ? 'text-white' : item.feriadoNome ? 'text-red-400' : 'text-slate-500'}
                 `}>
                   {item.numero}
                 </span>
               )}
 
-              {/* O Troféu no canto que você gosta continua aqui, fixo para todos os treinos */}
+              {/* Badges de Conquista Rápida */}
               {item.treinou && (
-                <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-lg animate-in zoom-in">
+                <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-xl animate-in zoom-in">
                   <Trophy className="w-2.5 h-2.5 text-orange-600" />
                 </div>
               )}
 
               {item.feriadoNome && !item.treinou && (
-                <div className="absolute bottom-1.5 w-1 h-1 bg-red-500 rounded-full" />
+                <div className="absolute bottom-2 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
               )}
             </button>
           );
         })}
       </div>
 
-      <div className="mt-8 flex items-center justify-center gap-6 border-t border-white/5 pt-6">
+      {/* Legenda Minimalista */}
+      <div className="mt-10 flex flex-wrap items-center justify-center gap-6 border-t border-white/5 pt-8">
         {[
           { color: 'bg-orange-500', label: 'Treino' },
-          { color: 'bg-red-500/50', label: 'Feriado' },
+          { color: 'bg-red-500/40', label: 'Feriado' },
           { color: 'bg-blue-500', label: 'Hoje' }
         ].map(l => (
-          <div key={l.label} className="flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${l.color}`} />
-            <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">{l.label}</span>
+          <div key={l.label} className="flex items-center gap-2.5">
+            <div className={`w-2 h-2 rounded-full ${l.color}`} />
+            <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">{l.label}</span>
           </div>
         ))}
       </div>

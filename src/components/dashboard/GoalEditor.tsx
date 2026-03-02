@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Trophy, Target, CalendarDays, Info } from 'lucide-react';
+import { Trophy, Target, Info } from 'lucide-react';
 
 interface Props {
   metaSemanal: number;
@@ -11,7 +11,13 @@ interface Props {
   setIsEditing: (valor: boolean) => void;
 }
 
-export default function GoalEditor({ metaSemanal, metaAnual, onUpdateMeta, isEditing, setIsEditing }: Props) {
+export default function GoalEditor({
+  metaSemanal,
+  metaAnual,
+  onUpdateMeta,
+  isEditing,
+  setIsEditing
+}: Props) {
   const dias = [1, 2, 3, 4, 5, 6, 7];
 
   return (
@@ -20,20 +26,27 @@ export default function GoalEditor({ metaSemanal, metaAnual, onUpdateMeta, isEdi
         onClick={() => setIsEditing(!isEditing)}
         className="w-full p-6 flex items-center justify-between hover:bg-white/[0.02] transition-colors group"
       >
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-orange-500/10 rounded-xl group-hover:scale-110 transition-transform">
-            <Trophy className="w-4 h-4 text-orange-500" />
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-orange-500/10 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+            <Trophy className="w-5 h-5 text-orange-500" />
           </div>
           <div className="text-left">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block mb-0.5">Seu Objetivo</span>
-            <p className="text-sm font-black text-white uppercase italic tracking-tight">
-              {metaSemanal}x por semana <span className="text-slate-600 ml-2">|</span> <span className="text-orange-500 ml-2">{metaAnual} treinos previstos</span>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] block mb-1 leading-none">
+              Configuração de Alvo
+            </span>
+            <p className="text-sm font-black text-white uppercase italic tracking-tight flex items-center gap-2">
+              {metaSemanal}x Semanais
+              <span className="text-slate-700 font-normal">|</span>
+              <span className="text-orange-500">{metaAnual} treinos no ano</span>
             </p>
           </div>
         </div>
 
-        <span className="text-[9px] font-black uppercase tracking-widest bg-slate-800 text-slate-400 px-4 py-2 rounded-full border border-white/5">
-          {isEditing ? "Concluir" : "Editar"}
+        <span className={`text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-full border transition-all ${isEditing
+          ? "bg-orange-500 text-white border-orange-400 shadow-lg shadow-orange-500/20"
+          : "bg-slate-800 text-slate-400 border-white/5 hover:text-white"
+          }`}>
+          {isEditing ? "Salvar" : "Editar"}
         </span>
       </button>
 
@@ -42,22 +55,21 @@ export default function GoalEditor({ metaSemanal, metaAnual, onUpdateMeta, isEdi
           <div className="h-px bg-gradient-to-r from-transparent via-white/5 to-transparent w-full" />
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between px-1">
               <label className="text-[10px] text-slate-400 uppercase font-black tracking-widest flex items-center gap-2">
-                <Target className="w-3 h-3" /> Frequência Desejada
+                <Target className="w-3.5 h-3.5 text-orange-500" /> Frequência Desejada
               </label>
-              <span className="text-[9px] font-bold text-orange-500 uppercase">Ajuste conforme sua rotina</span>
+              <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">Dias por semana</span>
             </div>
 
-            {/* Seleção de dias com botões */}
             <div className="grid grid-cols-7 gap-2">
               {dias.map((dia) => (
                 <button
                   key={dia}
                   onClick={() => onUpdateMeta(dia)}
-                  className={`py-4 rounded-2xl font-black transition-all border ${metaSemanal === dia
-                    ? 'bg-orange-500 border-orange-400 text-white shadow-lg shadow-orange-500/20 scale-105'
-                    : 'bg-slate-800/50 border-white/5 text-slate-500 hover:border-orange-500/30'
+                  className={`py-4 rounded-2xl font-black text-sm transition-all border active:scale-90 ${metaSemanal === dia
+                    ? 'bg-orange-500 border-orange-400 text-white shadow-lg shadow-orange-500/40 scale-105 z-10'
+                    : 'bg-slate-800/50 border-white/5 text-slate-600 hover:border-orange-500/30 hover:text-slate-300'
                     }`}
                 >
                   {dia}
@@ -66,15 +78,15 @@ export default function GoalEditor({ metaSemanal, metaAnual, onUpdateMeta, isEdi
             </div>
           </div>
 
-          <div className="bg-orange-500/5 border border-orange-500/10 p-4 rounded-2xl space-y-3">
+          <div className="bg-orange-500/5 border border-orange-500/10 p-4 rounded-2xl">
             <div className="flex items-start gap-3">
               <Info className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-[10px] text-orange-200/70 font-bold leading-relaxed uppercase tracking-tight">
-                  Sua meta anual foi recalculada dinamicamente.
+                  Baseado na sua data de cadastro e meta semanal:
                 </p>
                 <p className="text-[11px] text-white font-black italic uppercase">
-                  Faltam {metaAnual} sessões para encerrar o seu 2026.
+                  A chama exige {metaAnual} vitórias até o fim de 2026.
                 </p>
               </div>
             </div>

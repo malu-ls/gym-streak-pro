@@ -1,10 +1,10 @@
 "use client";
 
 import { createBrowserClient } from '@supabase/ssr';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Flame, Mail, Lock, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link'; // Importado para navegação interna
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,14 +14,16 @@ export default function LoginPage() {
   const [status, setStatus] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isClient, setIsClient] = useState(false);
 
+  // Garante que o componente só renderize no cliente (evita erros de hidratação)
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  const supabase = createBrowserClient(
+  // Memoiza o cliente Supabase para não recriar a instância em cada render
+  const supabase = useMemo(() => createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  ), []);
 
   if (!isClient) return null;
 
@@ -39,14 +41,26 @@ export default function LoginPage() {
       });
 
       if (error) {
-        // Verifica se o erro é de e-mail não confirmado
+        // Tratamento de erro amigável para o usuário
         if (error.message.includes("Email not confirmed")) {
-          setStatus({ type: 'error', text: "E-mail ainda não confirmado. Verifique sua caixa de entrada." });
+          setStatus({
+            type: 'error',
+            text: "E-mail não confirmado. Verifique sua caixa de entrada."
+          });
+        } else if (error.message.includes("Invalid login credentials")) {
+          setStatus({
+            type: 'error',
+            text: "E-mail ou senha incorretos."
+          });
         } else {
-          setStatus({ type: 'error', text: "Acesso negado. Verifique suas credenciais." });
+          setStatus({
+            type: 'error',
+            text: "Erro ao acessar. Tente novamente mais tarde."
+          });
         }
         setLoading(false);
       } else {
+        // Refresh limpa caches de rotas antigas e push leva ao dashboard
         router.refresh();
         router.push('/');
       }
@@ -60,7 +74,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-6 text-slate-50 selection:bg-orange-500/30">
       <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in duration-700">
 
-        {/* Branding */}
+        {/* Branding Ignite */}
         <div className="text-center space-y-3">
           <div className="inline-flex p-4 bg-orange-500/10 rounded-[2.5rem] border border-orange-500/20 mb-2 relative group">
             <div className="absolute inset-0 bg-orange-500/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -74,12 +88,14 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Auth Card */}
-        <div className="bg-slate-900/40 p-10 rounded-[3rem] border border-white/5 backdrop-blur-2xl shadow-2xl relative">
-          <form onSubmit={handleSignIn} className="space-y-6">
+        {/* Card de Login */}
+        <div className="bg-slate-900/40 p-10 rounded-[3rem] border border-white/5 backdrop-blur-2xl shadow-2xl relative overflow-hidden">
+          {/* Detalhe de luz no fundo do card */}
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/10 blur-[100px] pointer-events-none" />
 
+          <form onSubmit={handleSignIn} className="space-y-6 relative z-10">
             {status && (
-              <div className={`p-4 rounded-2xl flex items-center gap-3 border animate-in slide-in-from-top-4 ${status.type === 'success'
+              <div className={`p-4 rounded-2xl flex items-center gap-3 border animate-in slide-in-from-top-4 duration-300 ${status.type === 'success'
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
                 : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
                 }`}>
@@ -123,8 +139,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-10 pt-8 border-t border-white/5 flex flex-col gap-4">
-            {/* Redireciona para a página de Signup dedicada */}
+          <div className="mt-10 pt-8 border-t border-white/5 flex flex-col gap-4 relative z-10">
             <Link
               href="/signup"
               className="text-center text-slate-500 hover:text-orange-400 font-black text-[10px] uppercase tracking-[0.25em] transition-all"

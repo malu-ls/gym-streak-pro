@@ -1,10 +1,10 @@
-// src/app/api/notifications/cron-reminders/route.ts
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// Configuração de Web Push
 const publicVapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || '';
 const privateVapid = process.env.VAPID_PRIVATE_KEY || '';
 
@@ -16,6 +16,7 @@ if (publicVapid && privateVapid) {
   );
 }
 
+// Configuração do Supabase Admin (Service Role)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
@@ -25,16 +26,16 @@ const supabaseAdmin = (supabaseUrl && supabaseServiceKey)
 
 export async function GET(req: Request) {
   if (!supabaseAdmin) {
-    return NextResponse.json({ error: 'Ambiente não configurado.' }, { status: 500 });
+    return NextResponse.json({ error: 'Configuração de Admin ausente.' }, { status: 500 });
   }
 
+  // Validação de segurança da Cron
   const authHeader = req.headers.get('authorization');
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // CORREÇÃO DE TIMEZONE: Garante que "hoje" seja a data de Brasília (YYYY-MM-DD)
-  // Independente de onde o servidor da Vercel estiver rodando.
+  // CORREÇÃO DE TIMEZONE: Garante YYYY-MM-DD no horário de Brasília
   const hoje = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
@@ -43,14 +44,14 @@ export async function GET(req: Request) {
   }).format(new Date()).split('/').reverse().join('-');
 
   try {
-    // 1. Busca todos os usuários inscritos para receber Push
+    // 1. Busca usuários inscritos
     const { data: inscritos, error: errSub } = await supabaseAdmin
       .from('push_subscriptions')
       .select('user_id, subscription_json');
 
     if (errSub || !inscritos) throw errSub;
 
-    // 2. Busca treinos realizados especificamente na data "hoje" (local)
+    // 2. Busca quem já treinou hoje no banco (usando a data local formatada)
     const { data: treinosHoje, error: errTreinos } = await supabaseAdmin
       .from('treinos')
       .select('usuario_id')
@@ -58,35 +59,25 @@ export async function GET(req: Request) {
 
     if (errTreinos) throw errTreinos;
 
+    // Criamos um Set para busca rápida (O(1))
     const idsQueJaTreinaram = new Set(treinosHoje?.map(t => t.usuario_id) || []);
 
-    // 3. Filtra: Inscritos que NÃO estão na lista de quem treinou hoje
+    // 3. Filtra quem ainda não registrou treino
     const faltosos = inscritos.filter(ins => !idsQueJaTreinaram.has(ins.user_id));
 
-    console.log(`[Cron] Data: ${hoje} | Inscritos: ${inscritos.length} | Já treinaram: ${idsQueJaTreinaram.size} | Faltosos: ${faltosos.length}`);
-
-    // 4. Disparo das notificações
+    // 4. Disparo paralelo das notificações
     const promessasDeEnvio = faltosos.map(async (assinante) => {
       const payload = JSON.stringify({
         title: 'A chama está apagando! 🔥',
         body: 'Você ainda não registrou seu treino de hoje. Mantenha sua meta viva!',
-        url: '/?action=open_mood_selector'
+        url: '/?action=open_mood_selector' // Deep link para abrir o seletor de humor
       });
 
       try {
-        return await webpush.sendNotification(
-          assinante.subscription_json as any,
-          payload,
-          {
-            TTL: 86400,
-            urgency: 'high',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          }
-        );
+        const sub = assinante.subscription_json as unknown as webpush.PushSubscription;
+        return await webpush.sendNotification(sub, payload);
       } catch (error: any) {
-        // Limpeza de banco: Remove tokens que o Google/Apple dizem que não existem mais
+        // Limpeza automática: Se o token expirou (410) ou é inválido (404), removemos do banco
         if (error.statusCode === 410 || error.statusCode === 404) {
           await supabaseAdmin
             .from('push_subscriptions')
@@ -102,14 +93,16 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       success: true,
-      data_processamento: hoje,
-      total_inscritos: inscritos.length,
-      faltosos_encontrados: faltosos.length,
-      notificacoes_enviadas: enviadosComSucesso
+      meta: {
+        data_local: hoje,
+        faltosos: faltosos.length,
+        enviados: enviadosComSucesso
+      }
     });
 
-  } catch (error: any) {
-    console.error('Erro na Cron:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro interno na Cron';
+    console.error('[Cron Error]:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

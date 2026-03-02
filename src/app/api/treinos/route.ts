@@ -3,52 +3,89 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json([], { status: 401 })
 
-  const { data } = await supabase
+  // getUser é a forma mais segura de validar o usuário no servidor
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return NextResponse.json([], { status: 401 })
+  }
+
+  const { data, error } = await supabase
     .from('treinos')
     .select('*')
-    .eq('usuario_id', session.user.id)
+    .eq('usuario_id', user.id)
     .order('data', { ascending: true })
+
+  if (error) {
+    console.error('[API Treinos GET]:', error.message)
+    return NextResponse.json([], { status: 500 })
+  }
 
   return NextResponse.json(data || [])
 }
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  const { data: dataIso, mood, hora } = await request.json()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
-  const { data, error } = await supabase
-    .from('treinos')
-    .upsert({
-      usuario_id: session.user.id,
-      data: dataIso,
-      mood: mood || '🏆',
-      hora: hora || new Date().getHours()
-    })
-    .select()
+  try {
+    const { data: dataIso, mood, hora } = await request.json()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data[0])
+    if (!dataIso) {
+      return NextResponse.json({ error: 'Data não informada' }, { status: 400 })
+    }
+
+    const { data, error } = await supabase
+      .from('treinos')
+      .upsert({
+        usuario_id: user.id,
+        data: dataIso,
+        mood: mood || '🏆',
+        hora: hora ?? new Date().getHours()
+      }, {
+        onConflict: 'usuario_id, data' // Garante unicidade por dia/usuário
+      })
+      .select()
+
+    if (error) throw error
+
+    return NextResponse.json(data?.[0] || { success: true })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro ao salvar treino'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: Request) {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  const { data: dataIso } = await request.json()
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+  }
 
-  const { error } = await supabase
-    .from('treinos')
-    .delete()
-    .eq('usuario_id', session.user.id)
-    .eq('data', dataIso)
+  try {
+    const { data: dataIso } = await request.json()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true })
+    if (!dataIso) {
+      return NextResponse.json({ error: 'Data não informada' }, { status: 400 })
+    }
+
+    const { error } = await supabase
+      .from('treinos')
+      .delete()
+      .eq('usuario_id', user.id)
+      .eq('data', dataIso)
+
+    if (error) throw error
+
+    return NextResponse.json({ success: true })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro ao deletar treino'
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

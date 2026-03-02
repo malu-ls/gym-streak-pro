@@ -16,6 +16,13 @@ export default function SignUp() {
   const [error, setError] = useState<string | null>(null);
   const [showVerification, setShowVerification] = useState(false);
 
+  // Memoização do cliente para estabilidade do componente
+  const supabase = useMemo(() => createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  ), []);
+
+  // Lógica de requisitos de senha otimizada
   const passwordRequirements = useMemo(() => [
     { label: '8+ Caracteres', met: password.length >= 8 },
     { label: 'Letra Maiúscula', met: /[A-Z]/.test(password) },
@@ -25,14 +32,10 @@ export default function SignUp() {
 
   const isPasswordValid = passwordRequirements.every(req => req.met);
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading || !isPasswordValid || !sexo) return;
+
     setIsLoading(true);
     setError(null);
 
@@ -47,19 +50,23 @@ export default function SignUp() {
             data_nascimento: dataNascimento,
             sexo: sexo
           },
+          // Garante o redirecionamento correto pós-confirmação de e-mail
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
       if (authError) throw authError;
       if (data?.user) setShowVerification(true);
-    } catch (err: any) {
-      setError(err.message || "Falha técnica no banco de dados.");
+
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Falha ao criar conta.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // View de sucesso/verificação
   if (showVerification) {
     return <EmailVerification email={email} onVerified={() => window.location.href = '/'} />;
   }
@@ -68,6 +75,7 @@ export default function SignUp() {
     <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-6 text-slate-50 font-sans">
       <div className="w-full max-w-md space-y-6 animate-in fade-in zoom-in duration-700">
 
+        {/* Branding Ignite */}
         <div className="text-center space-y-3">
           <div className="inline-flex p-4 bg-orange-500/10 rounded-[2.5rem] border border-orange-500/20 mb-2 relative group">
             <div className="absolute inset-0 bg-orange-500/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity" />
@@ -79,10 +87,10 @@ export default function SignUp() {
           <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.4em]">Fuel your evolution</p>
         </div>
 
+        {/* Form Card */}
         <div className="bg-slate-900/40 p-8 rounded-[3rem] border border-white/5 backdrop-blur-2xl shadow-2xl">
           <form onSubmit={handleSignUp} className="space-y-6">
 
-            {/* Campos de Texto */}
             <div className="space-y-3">
               <div className="relative group">
                 <User className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-600 group-focus-within:text-orange-500 transition-colors" />
@@ -111,6 +119,7 @@ export default function SignUp() {
                 />
               </div>
 
+              {/* Password Requirements Indicator */}
               {password.length > 0 && (
                 <div className="grid grid-cols-2 gap-2 p-3 bg-slate-950/50 rounded-2xl border border-white/5 animate-in slide-in-from-top-2">
                   {passwordRequirements.map((req, i) => (
@@ -125,7 +134,6 @@ export default function SignUp() {
               )}
             </div>
 
-            {/* Seletor de Data de Nascimento */}
             <div className="space-y-2">
               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
                 <Calendar size={12} /> Data de Nascimento
@@ -137,28 +145,24 @@ export default function SignUp() {
               />
             </div>
 
-            {/* NOVO: Seletor de Sexo Estilizado */}
             <div className="space-y-3">
               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
                 <Orbit size={12} /> Como você se identifica?
               </label>
               <div className="grid grid-cols-2 gap-3">
-                {[
-                  { id: 'masculino', label: 'Masculino' },
-                  { id: 'feminino', label: 'Feminino' }
-                ].map((opcao) => (
+                {['masculino', 'feminino'].map((opt) => (
                   <button
-                    key={opcao.id}
+                    key={opt}
                     type="button"
-                    onClick={() => setSexo(opcao.id)}
+                    onClick={() => setSexo(opt)}
                     className={`
                       flex items-center justify-center p-4 rounded-2xl font-black text-[10px] tracking-[0.2em] transition-all duration-300 border
-                      ${sexo === opcao.id
-                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 scale-[1.02] border-transparent'
-                        : 'bg-slate-800/40 text-slate-500 border-white/5 hover:border-orange-500/30 hover:text-slate-300'}
+                      ${sexo === opt
+                        ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 border-transparent'
+                        : 'bg-slate-800/40 text-slate-500 border-white/5 hover:border-orange-500/30'}
                     `}
                   >
-                    {opcao.label.toUpperCase()}
+                    {opt.toUpperCase()}
                   </button>
                 ))}
               </div>

@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Share2, Calendar, Scale, Loader2 } from 'lucide-react';
+import { Share2, Calendar, Scale, Loader2, BookOpen } from 'lucide-react'; // Adicionado BookOpen
 import confetti from 'canvas-confetti';
-import { toPng } from 'html-to-image';
+import { toBlob } from 'html-to-image';
 import { createBrowserClient } from '@supabase/ssr';
 
 // Componentes Core
@@ -11,12 +11,13 @@ import MonthlyCalendar from '@/components/MonthlyCalendar';
 import Header from '@/components/dashboard/Header';
 import GoalEditor from '@/components/dashboard/GoalEditor';
 import InstagramCard from '@/components/social/InstagramCard';
-import WaterTracker from '@/components/dashboard/WaterTracker'; // Novo Componente
+import WaterTracker from '@/components/dashboard/WaterTracker';
 import WeightTracker from '@/components/body/WeightTracker';
 import WeeklyProgress from '@/components/dashboard/WeeklyProgress';
 import CyclePredictor from '@/components/dashboard/CyclePredictor';
 import FemaleOnboarding from '@/components/dashboard/FemaleOnboarding';
 import MoodSelector from '@/components/dashboard/MoodSelector';
+import ReadingTracker from '@/components/routine/ReadingTracker'; // Importe o novo componente
 
 interface Treino {
   id: string;
@@ -26,7 +27,9 @@ interface Treino {
 }
 
 export default function GymTracker() {
-  const [activeTab, setActiveTab] = useState<'frequencia' | 'peso'>('frequencia');
+  // 1. Atualizamos o estado para aceitar a nova aba de Leitura
+  const [activeTab, setActiveTab] = useState<'frequencia' | 'peso' | 'leitura'>('frequencia');
+
   const [treinos, setTreinos] = useState<Treino[]>([]);
   const [metaSemanal, setMetaSemanal] = useState(4);
   const [isCarregado, setIsCarregado] = useState(false);
@@ -43,7 +46,7 @@ export default function GymTracker() {
     ultimoCiclo: '',
     duracaoCiclo: 28,
     duracaoPeriodo: 5,
-    pesoAtual: 0 // Adicionado para o WaterTracker
+    pesoAtual: 0
   });
 
   const supabase = useMemo(() => createBrowserClient(
@@ -63,13 +66,12 @@ export default function GymTracker() {
             .eq('id', userId)
             .single(),
           fetch('/api/treinos').then(r => r.json()),
-          // Busca o peso mais recente para o cálculo de água
           supabase.from('historico_peso')
             .select('peso')
             .eq('usuario_id', userId)
             .order('data', { ascending: false })
             .limit(1)
-            .single()
+            .maybeSingle()
         ]);
 
         if (perfilRes.data) {
@@ -118,6 +120,44 @@ export default function GymTracker() {
     }
   };
 
+  const confirmarAcaoTreino = async (dataIso: string, moodSelecionado: string | null, isDelete = false) => {
+    setShowMoodSelector(null);
+    const backupTreinos = [...treinos];
+
+    if (isDelete) {
+      setTreinos(prev => prev.filter(t => t.data !== dataIso));
+    } else {
+      const moodFinal = moodSelecionado || '🏆';
+      const novoTreino: Treino = {
+        id: `temp-${Date.now()}`,
+        data: dataIso,
+        hora: new Date().getHours(),
+        mood: moodFinal
+      };
+      setTreinos(prev => [...prev, novoTreino]);
+      confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
+    }
+
+    try {
+      const res = await fetch('/api/treinos', {
+        method: isDelete ? 'DELETE' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: dataIso,
+          mood: moodSelecionado || '🏆',
+          hora: new Date().getHours()
+        })
+      });
+
+      if (!res.ok) throw new Error("Falha na sincronização");
+      carregarDados();
+    } catch (e) {
+      console.error("Erro ao sincronizar treino:", e);
+      setTreinos(backupTreinos);
+      alert("Erro ao salvar treino. Verifique sua conexão.");
+    }
+  };
+
   const handleToggleTreino = useCallback((dataIso: string) => {
     const treinoExistente = treinos.find(t => t.data === dataIso);
     if (treinoExistente) {
@@ -125,31 +165,7 @@ export default function GymTracker() {
     } else {
       setShowMoodSelector({ data: dataIso });
     }
-  }, [treinos]);
-
-  const confirmarAcaoTreino = async (dataIso: string, moodSelecionado: string | null, isDelete = false) => {
-    const treinosAnteriores = [...treinos];
-    setShowMoodSelector(null);
-
-    if (isDelete) {
-      setTreinos(prev => prev.filter(t => t.data !== dataIso));
-      await fetch('/api/treinos', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: dataIso })
-      });
-    } else {
-      const moodFinal = moodSelecionado || '🏆';
-      setTreinos(prev => [...prev, { id: 'temp', data: dataIso, hora: new Date().getHours(), mood: moodFinal }]);
-      confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } });
-      await fetch('/api/treinos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: dataIso, mood: moodFinal, hora: new Date().getHours() })
-      });
-    }
-    carregarDados();
-  };
+  }, [treinos, confirmarAcaoTreino]);
 
   const handleUpdateCycle = async (novaData: string, novaDuracao: number, novaDuracaoPeriodo: number) => {
     if (userData.id) {
@@ -166,20 +182,30 @@ export default function GymTracker() {
 
   const treinosDaSemana = useMemo(() => {
     const hoje = new Date();
+    const diaSem = hoje.getDay();
     const domingo = new Date(hoje);
-    domingo.setDate(hoje.getDate() - hoje.getDay());
+    domingo.setDate(hoje.getDate() - diaSem);
     domingo.setHours(0, 0, 0, 0);
     return treinos.filter(t => new Date(t.data + "T00:00:00") >= domingo);
   }, [treinos]);
 
   const stats = useMemo(() => {
+    const hojeLocal = new Date().toLocaleDateString('en-CA');
     const prefixoMes = `${dataExibida.getFullYear()}-${(dataExibida.getMonth() + 1).toString().padStart(2, '0')}`;
     const treinosNoMes = treinos.filter(t => t.data.startsWith(prefixoMes)).length;
+
+    const rank = treinos.length <= 10 ? { nome: "Iniciante", emoji: "🐣" } :
+      treinos.length <= 30 ? { nome: "Focado", emoji: "🔥" } :
+        treinos.length <= 80 ? { nome: "Constante", emoji: "🏋️‍♂️" } :
+          { nome: "Gladiador", emoji: "🛡️" };
+
     return {
       treinosNoMes,
       nomeMes: dataExibida.toLocaleDateString('pt-BR', { month: 'long' }),
       anoExibido: dataExibida.getFullYear(),
       metaMensal: metaSemanal * 4,
+      treinouHoje: treinos.some(t => t.data === hojeLocal),
+      rank
     };
   }, [treinos, metaSemanal, dataExibida]);
 
@@ -190,13 +216,15 @@ export default function GymTracker() {
     return Math.max(1, Math.floor((diffEmDias / 7) * metaSemanal));
   }, [metaSemanal, userData.createdAt]);
 
-  const compartilharFrequencia = async () => {
+  const handleExportarTreino = async () => {
     const node = document.getElementById('resumo-mensal-card');
     if (!node) return;
     setIsExportando(true);
     try {
-      const dataUrl = await toPng(node, { quality: 1, pixelRatio: 2, backgroundColor: '#020617' });
-      const blob = await (await fetch(dataUrl)).blob();
+      await new Promise(r => setTimeout(r, 400));
+      const blob = await toBlob(node, { quality: 1, pixelRatio: 2 });
+      if (!blob) return;
+
       const file = new File([blob], `ignite-stats.png`, { type: 'image/png' });
 
       if (navigator.share && navigator.canShare({ files: [file] })) {
@@ -204,10 +232,14 @@ export default function GymTracker() {
       } else {
         const link = document.createElement('a');
         link.download = `ignite-stats.png`;
-        link.href = dataUrl;
+        link.href = URL.createObjectURL(blob);
         link.click();
       }
-    } catch (e) { console.error(e); } finally { setIsExportando(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsExportando(false);
+    }
   };
 
   if (!isCarregado) return (
@@ -227,11 +259,10 @@ export default function GymTracker() {
       )}
 
       <div className="max-w-4xl mx-auto space-y-6">
-        {activeTab === 'frequencia' ? (
+        {/* ABA DE TREINOS */}
+        {activeTab === 'frequencia' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <Header treinosCount={treinos.length} userName={userData.nome} />
-
-            {/* Inserção do WaterTracker na Frequência */}
             <WaterTracker userId={userData.id} />
 
             {userData.sexo === 'feminino' && (
@@ -258,12 +289,19 @@ export default function GymTracker() {
             <WeeklyProgress treinos={treinos} metaSemanal={metaSemanal} />
             <MonthlyCalendar treinos={treinos} onToggleTreino={handleToggleTreino} onMonthChange={setDataExibida} />
 
-            <button onClick={compartilharFrequencia} disabled={isExportando} className="w-full bg-gradient-to-br from-orange-500 to-orange-700 font-black py-6 rounded-[32px] flex items-center justify-center gap-3 uppercase text-xs tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50">
+            <button
+              onClick={handleExportarTreino}
+              disabled={isExportando}
+              className="w-full bg-gradient-to-br from-orange-500 to-orange-700 font-black py-6 rounded-[32px] flex items-center justify-center gap-3 uppercase text-xs tracking-widest shadow-2xl active:scale-95 transition-all disabled:opacity-50"
+            >
               {isExportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Share2 className="w-4 h-4" />}
               {isExportando ? "GERANDO STATUS..." : "Exportar Evolução Mensal"}
             </button>
           </div>
-        ) : (
+        )}
+
+        {/* ABA DE PESO */}
+        {activeTab === 'peso' && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <WeightTracker
               ultimoCiclo={userData.ultimoCiclo}
@@ -272,23 +310,40 @@ export default function GymTracker() {
             />
           </div>
         )}
+
+        {/* ABA DE LEITURA */}
+        {activeTab === 'leitura' && (
+          <ReadingTracker />
+        )}
       </div>
 
-      <nav className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-3xl border border-white/10 p-2.5 rounded-full shadow-2xl flex gap-3 z-50">
-        <button onClick={() => setActiveTab('frequencia')} className={`flex items-center gap-3 px-10 py-5 rounded-full font-black text-[10px] uppercase transition-all ${activeTab === 'frequencia' ? 'bg-orange-500 text-white shadow-xl scale-105' : 'text-slate-500'}`}>
-          <Calendar className="w-4 h-4" /> Treinos
+      {/* 2. NavBar atualizada e com padding ajustado para caber 3 botões */}
+      <nav className="fixed bottom-6 w-[90%] max-w-sm left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-3xl border border-white/10 p-2 rounded-[2rem] shadow-2xl flex justify-between gap-1 z-50">
+        <button
+          onClick={() => setActiveTab('frequencia')}
+          className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-1.5 py-3 rounded-[1.5rem] font-black text-[9px] uppercase transition-all ${activeTab === 'frequencia' ? 'bg-orange-500 text-white shadow-xl scale-105' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          <Calendar className="w-4 h-4" /> <span>Treinos</span>
         </button>
-        <button onClick={() => setActiveTab('peso')} className={`flex items-center gap-3 px-10 py-5 rounded-full font-black text-[10px] uppercase transition-all ${activeTab === 'peso' ? 'bg-orange-500 text-white shadow-xl scale-105' : 'text-slate-500'}`}>
-          <Scale className="w-4 h-4" /> Peso
+
+        <button
+          onClick={() => setActiveTab('peso')}
+          className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-1.5 py-3 rounded-[1.5rem] font-black text-[9px] uppercase transition-all ${activeTab === 'peso' ? 'bg-orange-500 text-white shadow-xl scale-105' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          <Scale className="w-4 h-4" /> <span>Peso</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('leitura')}
+          className={`flex-1 flex flex-col md:flex-row items-center justify-center gap-1.5 py-3 rounded-[1.5rem] font-black text-[9px] uppercase transition-all ${activeTab === 'leitura' ? 'bg-orange-500 text-white shadow-xl scale-105' : 'text-slate-500 hover:text-slate-300'}`}
+        >
+          <BookOpen className="w-4 h-4" /> <span>Leitura</span>
         </button>
       </nav>
 
-      {/* Card oculto para exportação */}
+      {/* Card oculto para exportação de Treino */}
       <InstagramCard
-        bateuMetaMensal={false} rank={{
-          nome: '',
-          emoji: ''
-        }} treinouHoje={false} {...stats}
+        {...stats}
         metaMensalEstimada={stats.metaMensal}
         treinosCount={treinos.length}
         metaAnual={metaAnualDinamica}
@@ -296,7 +351,10 @@ export default function GymTracker() {
         ano={stats.anoExibido}
         mesNome={stats.nomeMes}
         metaSemanal={metaSemanal}
-        concluidosSemana={treinosDaSemana.length} />
+        concluidosSemana={treinosDaSemana.length}
+        userName={userData.nome}
+        bateuMetaMensal={stats.treinosNoMes >= stats.metaMensal}
+      />
     </main>
   );
 }

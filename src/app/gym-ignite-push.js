@@ -1,21 +1,27 @@
-/* eslint-disable no-restricted-globals */
 
-// Força o Service Worker a assumir o controle imediatamente após a instalação
+
+/**
+ * Service Worker - Gym Ignite Push System
+ * Gerencia a recepção de notificações e interação do usuário
+ */
+
+// Instalação: Força o SW a se tornar ativo imediatamente
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
 });
 
+// Ativação: Assume o controle de todas as abas abertas do app
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Escutador de eventos Push
-self.addEventListener('push', function (event) {
-  // Fallback seguro caso o payload venha vazio ou inválido
+// Evento PUSH: Recebe os dados do servidor (Vercel Cron/Push API)
+self.addEventListener('push', (event) => {
+  // Fallback padrão (Seguro contra erros de rede)
   let data = {
-    title: 'Gym Ignite 🔥',
-    body: 'Bora treinar? A chama não pode apagar!',
-    url: '/'
+    title: 'A chama está acesa! 🔥',
+    body: 'Bora registrar o treino de hoje?',
+    url: '/?action=open_mood_selector'
   };
 
   if (event.data) {
@@ -27,21 +33,27 @@ self.addEventListener('push', function (event) {
         url: payload.url || data.url
       };
     } catch (e) {
-      // Se não for JSON, tenta ler como texto simples
-      data.body = event.data.text() || data.body;
+      // Se não for JSON, tenta tratar como texto simples
+      const text = event.data.text();
+      if (text) data.body = text;
     }
   }
 
   const options = {
     body: data.body,
-    icon: '/icon-192.png', // Verifique se este arquivo existe na pasta public
+    // Caminhos absolutos garantem que o ícone apareça no Android/iOS
+    icon: '/icon-192.png',
     badge: '/icon-192.png',
-    vibrate: [200, 100, 200],
-    tag: 'gym-ignite-notif', // Tag única para agrupar notificações
+    vibrate: [200, 100, 200, 100, 200], // Padrão de vibração mais perceptível
+    tag: 'gym-ignite-reminder', // Substitui a anterior se chegar uma nova (evita spam)
     renotify: true,
     data: {
       url: data.url
-    }
+    },
+    // Ações rápidas (Opcional: você pode adicionar botões no futuro)
+    actions: [
+      { action: 'open', title: 'REGISTRAR AGORA' }
+    ]
   };
 
   event.waitUntil(
@@ -49,24 +61,27 @@ self.addEventListener('push', function (event) {
   );
 });
 
-// Gerenciamento do clique na notificação
-self.addEventListener('notificationclick', function (event) {
+// Evento CLICK: Gerencia o que acontece quando o usuário toca na notificação
+self.addEventListener('notificationclick', (event) => {
   const notification = event.notification;
-  const targetUrl = notification.data.url || '/';
+  const targetUrl = new URL(notification.data.url || '/', self.location.origin).href;
 
   notification.close();
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Se o app já estiver aberto, foca na aba existente
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // 1. Verifica se já existe uma aba do app aberta
       for (const client of clientList) {
-        if (client.url === targetUrl && 'focus' in client) {
+        // Se achou, foca nela e navega para a URL (caso tenha parâmetro novo)
+        if ('focus' in client) {
+          client.navigate(targetUrl);
           return client.focus();
         }
       }
-      // Se não, abre uma nova janela/aba
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+
+      // 2. Se não houver aba aberta, abre uma nova com a URL do Push
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
       }
     })
   );

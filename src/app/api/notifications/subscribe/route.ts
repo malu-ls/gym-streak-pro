@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   const cookieStore = await cookies();
 
+  // Cliente Supabase configurado para Server Side Rendering
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
               cookieStore.set(name, value, options)
             );
           } catch {
-            // O Next.js pode lançar erro se os cookies forem alterados em Server Action/Route Handler
+            // Silencioso: Route Handlers nem sempre permitem setar cookies em tempo de execução
           }
         },
       },
@@ -29,20 +30,21 @@ export async function POST(req: Request) {
   try {
     const subscription = await req.json();
 
-    // 1. Validação básica do payload antes de tocar no banco
+    // 1. Validação do Payload do Browser
     if (!subscription || !subscription.endpoint) {
-      return NextResponse.json({ error: 'Inscrição inválida' }, { status: 400 });
+      return NextResponse.json({ error: 'Inscrição Push inválida' }, { status: 400 });
     }
 
-    // 2. getUser() é a forma segura de validar o JWT no servidor
+    // 2. Validação Segura do Usuário (Server-side check)
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      console.error("Erro Auth:", authError?.message);
-      return NextResponse.json({ error: 'Sessão expirada ou inválida' }, { status: 401 });
+      console.error("[Subscribe Auth Error]:", authError?.message);
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
-    // 3. Upsert com tratamento de erro detalhado
+    // 3. Upsert: Salva ou atualiza a inscrição para este usuário
+    // Usamos o user_id como chave de conflito para que cada usuário tenha apenas 1 token ativo
     const { error: dbError } = await supabase
       .from('push_subscriptions')
       .upsert(
@@ -52,22 +54,22 @@ export async function POST(req: Request) {
           updated_at: new Date().toISOString()
         },
         {
-          onConflict: 'user_id',
-          ignoreDuplicates: false
+          onConflict: 'user_id'
         }
       );
 
     if (dbError) {
-      console.error("Erro Supabase RLS/DB:", dbError.message);
-      return NextResponse.json({ error: dbError.message }, { status: 403 });
+      console.error("[Subscribe DB Error]:", dbError.message);
+      return NextResponse.json({ error: 'Erro ao salvar no banco' }, { status: 403 });
     }
 
     return NextResponse.json({ success: true });
 
-  } catch (error: any) {
-    console.error("Erro Crítico no Servidor:", error.message);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Erro interno desconhecido';
+    console.error("[Subscribe Critical Error]:", message);
     return NextResponse.json(
-      { error: 'Erro interno ao processar inscrição' },
+      { error: 'Erro ao processar sua inscrição' },
       { status: 500 }
     );
   }

@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
@@ -17,7 +17,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           response = NextResponse.next({
             request,
           })
@@ -29,19 +29,23 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // IMPORTANTE: Use getUser() em vez de getSession() para segurança
+  // Segurança máxima: getUser() verifica o JWT no banco
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isLoginPage = request.nextUrl.pathname === '/login'
-  const isHomePage = request.nextUrl.pathname === '/'
+  const { pathname } = request.nextUrl
+  const isAuthPage = pathname === '/login' || pathname === '/signup'
+  const isProtectedRoute = pathname === '/' || pathname.startsWith('/dashboard')
 
-  // REGRA 1: Se não estiver logado e tentar acessar a Home, vai para /login
-  if (!user && isHomePage) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // REGRA 1: Proteção de Rotas (Redireciona para Login se não houver user)
+  if (!user && isProtectedRoute) {
+    const url = new URL('/login', request.url)
+    // Opcional: salva a página que ele tentou acessar para voltar depois
+    // url.searchParams.set('next', pathname)
+    return NextResponse.redirect(url)
   }
 
-  // REGRA 2: Se já estiver logado e tentar ir para o /login, volta para a Home
-  if (user && isLoginPage) {
+  // REGRA 2: Evita Login/Signup duplicado (Redireciona logado para Home)
+  if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
@@ -51,12 +55,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match todas as rotas exceto:
-     * - api (rotas de API)
-     * - _next/static (arquivos estáticos)
-     * - _next/image (otimização de imagens)
-     * - favicon.ico (ícone do site)
+     * Match todas as rotas de página, ignorando assets e APIs internas
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|icon-).*)',
   ],
 }

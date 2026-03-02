@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Forçamos o esquema Dark como padrão do Gym Ignite */
+  --background: #020617;
+  /* Slate 950 */
+  --foreground: #f8fafc;
+  /* Slate 50 */
+
+  /* Cores de marca para uso via var() se necessário */
+  --ignite-orange: #f97316;
 }
 
 @theme inline {
@@ -12,27 +18,75 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Reset básico para manter a estética Dark em todos os dispositivos */
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-/* Remove as setinhas no Chrome, Safari, Edge e Opera */
+/* Utilitários de Input: Remove as setinhas de número (estética de App) */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-/* Remove as setinhas no Firefox */
 input[type=number] {
   -moz-appearance: textfield;
+}
+
+/* Suporte para PWA: Evita o scroll elástico no iOS (Pull to refresh indesejado) */
+html,
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Melhoria nas barras de rolagem (Scrollbar Ignite Style) */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  /* slate-800 */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #f97316;
+  /* ignite-orange */
+}
+
+/* Ajuste de animações nativas para classes do Tailwind */
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-4px);
+  }
+
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.2s ease-in-out 0s 2;
+}
+
+/* Tap Highlight: Remove o quadrado azul ao clicar em botões no mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
 }

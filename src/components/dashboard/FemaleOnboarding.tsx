@@ -15,7 +15,7 @@ export default function FemaleOnboarding({ onSave }: Props) {
   const [data, setData] = useState({
     ultimo_ciclo: '',
     duracao_ciclo: 28,
-    duracao_periodo: 5 // Valor padrão sugerido
+    duracao_periodo: 5
   });
 
   const dateInputRef = useRef<HTMLInputElement>(null);
@@ -23,7 +23,7 @@ export default function FemaleOnboarding({ onSave }: Props) {
   return (
     <div className="bg-slate-900/60 backdrop-blur-3xl p-8 rounded-[40px] border border-orange-500/30 shadow-2xl animate-in zoom-in duration-500">
       <div className="flex flex-col items-center text-center gap-4 mb-8">
-        <div className="p-4 bg-orange-500/20 rounded-2xl">
+        <div className="p-4 bg-orange-500/10 rounded-3xl border border-orange-500/20">
           <Calendar className="text-orange-500 w-8 h-8" />
         </div>
         <div>
@@ -32,7 +32,7 @@ export default function FemaleOnboarding({ onSave }: Props) {
         </div>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-7">
         {/* Início do Ciclo */}
         <div className="space-y-2">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Início do último ciclo</label>
@@ -50,18 +50,18 @@ export default function FemaleOnboarding({ onSave }: Props) {
           </div>
         </div>
 
-        {/* Duração do Ciclo (Intervalo) */}
-        <div className="space-y-2">
-          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duração média do ciclo (intervalo)</label>
+        {/* Duração do Ciclo */}
+        <div className="space-y-3">
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Duração média do ciclo</label>
           <div className="grid grid-cols-4 gap-2">
             {[26, 28, 30, 32].map((d) => (
               <button
                 key={d}
                 type="button"
                 onClick={() => setData({ ...data, duracao_ciclo: d })}
-                className={`py-3 rounded-xl font-black text-xs transition-all ${data.duracao_ciclo === d
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 scale-105'
-                  : 'bg-slate-800 text-slate-500 hover:text-white'
+                className={`py-3.5 rounded-xl font-black text-xs transition-all active:scale-90 ${data.duracao_ciclo === d
+                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 border-transparent'
+                  : 'bg-slate-800/50 text-slate-500 border border-white/5 hover:border-orange-500/30'
                   }`}
               >
                 {d}d
@@ -70,10 +70,10 @@ export default function FemaleOnboarding({ onSave }: Props) {
           </div>
         </div>
 
-        {/* NOVO: Duração do Período (Sangramento) */}
-        <div className="space-y-2">
+        {/* Duração do Período */}
+        <div className="space-y-3">
           <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-2">
-            <Droplets size={12} className="text-red-500" /> Dias de fluxo (sangramento)
+            <Droplets size={12} className="text-red-500" /> Dias de sangramento
           </label>
           <div className="flex justify-between gap-2">
             {[3, 4, 5, 6, 7].map((d) => (
@@ -81,9 +81,9 @@ export default function FemaleOnboarding({ onSave }: Props) {
                 key={d}
                 type="button"
                 onClick={() => setData({ ...data, duracao_periodo: d })}
-                className={`flex-1 py-3 rounded-xl font-black text-xs transition-all ${data.duracao_periodo === d
-                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 scale-105'
-                  : 'bg-slate-800 text-slate-500 hover:text-white'
+                className={`flex-1 py-3.5 rounded-xl font-black text-xs transition-all active:scale-90 ${data.duracao_periodo === d
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 border-transparent'
+                  : 'bg-slate-800/50 text-slate-500 border border-white/5 hover:border-red-500/30'
                   }`}
               >
                 {d}
@@ -92,13 +92,15 @@ export default function FemaleOnboarding({ onSave }: Props) {
           </div>
         </div>
 
-        <button
-          onClick={() => onSave(data)}
-          disabled={!data.ultimo_ciclo}
-          className="w-full bg-white text-black font-black py-5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-20 shadow-xl mt-2"
-        >
-          ATIVAR PREDIÇÕES <ArrowRight size={18} />
-        </button>
+        <div className="pt-2">
+          <button
+            onClick={() => onSave(data)}
+            disabled={!data.ultimo_ciclo}
+            className="w-full bg-white text-black font-black py-5 rounded-[24px] flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-20 shadow-xl"
+          >
+            ATIVAR PREDIÇÕES <ArrowRight size={18} />
+          </button>
+        </div>
 
         <p className="text-[9px] text-slate-600 text-center font-bold uppercase leading-relaxed px-4">
           *Seus dados são privados e usados apenas para <br /> cálculos de performance no app.
